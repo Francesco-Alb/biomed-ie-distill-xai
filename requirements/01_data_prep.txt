@@ -1,0 +1,11 @@
+# This file lists the dependencies for the data preparation step of the biomedical extraction pipeline.
+# Includes downloading datasets from HuggingFace and data handling.
+
+-r 00_core.txt
+
+datasets==3.6.0     # solves: "RuntimeError: Dataset scripts are no longer supported, but found bc5cdr.py"
+                    # see: https://github.com/huggingface/datasets/issues/7693#issuecomment-3103380232
+bioc==2.1           # for parsing BioC XML files, used in the BC5CDR dataset
+huggingface_hub==1.16.1
+pyarrow==18.1.0
+

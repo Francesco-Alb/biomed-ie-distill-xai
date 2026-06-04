@@ -1,0 +1,10 @@
+# This file lists the dependencies for the weak supervision step.
+# Uses an open-source LLM (llama.cpp) to generate weak labels for training.
+
+-r 00_core.txt
+
+llama-cpp-python
+transformers
+datasets
+torch
+torchao==0.17.0

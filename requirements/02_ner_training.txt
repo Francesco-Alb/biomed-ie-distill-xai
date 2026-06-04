@@ -1,0 +1,16 @@
+# This file lists the dependencies for named entity recognition model training.
+# Uses open-source models from HuggingFace and transformers for classifier training.
+
+-r 00_core.txt
+
+transformers
+torch
+torchao==0.17.0
+peft
+datasets
+accelerate
+evaluate
+
+trackio
+wandb
+gradio
