@@ -146,31 +146,20 @@ training_args = TrainingArguments(
 *Best model selected at epoch 10
 
 #### Training Visualizations
-<details>
-<summary>📈 Interactive Training Dashboard (Trackio)</summary>
 
-[Open Full Dashboard](https://Francesco-A-nlp-tracking.hf.space/?project=Biomed-IE&run_ids=24e46632c1b24a9a9a48de8f8e84526b&smoothing=1&sidebar=hidden&navbar=hidden)
-
-<iframe 
-  src="https://Francesco-A-nlp-tracking.hf.space/?project=Biomed-IE&run_ids=24e46632c1b24a9a9a48de8f8e84526b&smoothing=1&sidebar=hidden&navbar=hidden" 
-  width="100%" 
-  height="600" 
-  frameborder="0">
-</iframe>
-
-</details>
+<a href="https://Francesco-A-nlp-tracking.hf.space/?project=Biomed-IE&run_ids=24e46632c1b24a9a9a48de8f8e84526b&sidebar=hidden&navbar=hidden" target="_blank"><img src="https://raw.githubusercontent.com/gradio-app/trackio/refs/heads/main/trackio/assets/badge.png" alt="Visualize in Trackio" title="Visualize in Trackio" style="height: 40px;"/></a>
 
 <details>
 <summary>📊 Training Loss Curve</summary>
 
-![Training History](evals/images/BiomedNLP-PubMedBERT-base-uncased-ner-abstract-bc5cdr-v1.1_train_history.png)
+![Training History](evals/images/BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-v1.1_train_history.png)
 
 </details>
 
 
 #### Model Artifacts
 
-**Fine-tuned Model:** [Francesco-A/BiomedNLP-PubMedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1](https://huggingface.co/Francesco-A/BiomedNLP-PubMedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1)
+**Fine-tuned Model:** [Francesco-A/BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1](https://huggingface.co/Francesco-A/BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1)
 
 The trained adapter weights and tokenizer are stored on Hugging Face Model Hub with full configuration and label mappings.
 

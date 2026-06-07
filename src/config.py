@@ -20,7 +20,7 @@ class DataConfig:
 class ModelConfig:
     """Configuration for the model."""
     # --- NER ---
-    ner_model_name: str = "BiomedNLP-PubMedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1"
+    ner_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1"
     ner_model_checkpoint: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract"
     ner_label_names: list[str] = field(default_factory=lambda: [
         "O", 
