@@ -3,14 +3,15 @@
 
 -r 00_core.txt
 
-transformers
-torch
+transformers==5.9.0
+torch==2.11.0
 torchao==0.17.0
-peft
-datasets
-accelerate
-evaluate
+peft==0.19.1
+datasets==4.0.0
+accelerate==1.13.0
+evaluate==0.4.6
+seqeval==1.2.2
 
-trackio
-wandb
-gradio
+trackio==0.26.0
+wandb==0.27.0
+gradio==6.16.0
