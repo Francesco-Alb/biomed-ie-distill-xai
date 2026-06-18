@@ -3,8 +3,19 @@
 
 -r 00_core.txt
 
-llama-cpp-python
 transformers
 datasets
 torch
 torchao==0.17.0
+groq 
+instructor 
+pydantic
+
+# --- If using outlines
+outlines
+accelerate 
+bitsandbytes
+
+# --- If using llama-cpp
+# llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu130
+#==0.3.20

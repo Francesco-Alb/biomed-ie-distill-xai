@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+import itertools
 from datasets import DatasetDict, Dataset
 
 def ensure_validation_split(
@@ -92,3 +94,87 @@ def flatten_bc5cdr(dataset_split: Dataset) -> Dataset:
         
     # return pd.DataFrame(flat_data)
     return Dataset.from_pandas(pd.DataFrame(flat_data))
+
+
+def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
+    """
+    Create labeled candidate pairs from a given row.
+
+    Args:
+    - row (pd.Series): A pandas Series containing the data for a single row.
+
+    Returns:
+    - pd.DataFrame: A pandas DataFrame containing the labeled candidate pairs.
+
+    Notes:
+    - This function assumes that the input row contains the necessary information to create labeled candidate pairs.
+    """
+    text = row["text"]
+    entities = row["entities"]
+    
+    # Create a quick lookup set of true ground-truth relations for this document
+    true_relations = set()
+    if "relations" in row and isinstance(row["relations"], (list, np.ndarray)):
+        for rel in row["relations"]:
+            true_relations.add((rel["chem_mesh"], rel["dis_mesh"]))
+
+    # 2. Group entity mentions by their UNIQUE Concept IDs
+    chem_groups = {}  # Format: { 'D003000': [mention1, mention2] }
+    dis_groups = {}   # Format: { 'D006973': [mention1, mention2] }
+    
+    for e in entities:
+        
+        if e["type"] == "Chemical":
+            chem_groups.setdefault(e["mesh_id"], []).append(e)
+        elif e["type"] == "Disease":
+            dis_groups.setdefault(e["mesh_id"], []).append(e)
+
+    if not chem_groups or not dis_groups:
+        return []
+        
+    candidate_rows = []
+    
+    # 3. Pair UNIQUE IDs instead of individual mentions
+    for chem_id, dis_id in itertools.product(chem_groups.keys(), dis_groups.keys()):
+        
+        label = 1 if (chem_id, dis_id) in true_relations else 0
+        
+        # 4. Gather ALL tag insertions for ALL mentions of this specific pair
+        insertions = []
+        
+        # Collect all chemical mention boundaries for this ID
+        for chem_ent in chem_groups[chem_id]:
+            c_start, c_end = chem_ent["offsets"]
+            insertions.append((c_start, "<chemical> "))
+            insertions.append((c_end, " </chemical>"))
+            
+        # Collect all disease mention boundaries for this ID
+        for dis_ent in dis_groups[dis_id]:
+            d_start, d_end = dis_ent["offsets"]
+            insertions.append((d_start, "<disease> "))
+            insertions.append((d_end, " </disease>"))
+            
+        # CRITICAL: Sort all collected insertions back-to-front
+        insertions.sort(key=lambda x: x[0], reverse=True)
+        
+        # Inject all tags into a single text version
+        text_list = list(text)
+        for idx, tag in insertions:
+            text_list.insert(idx, tag)
+        masked_text = "".join(text_list)
+        
+        # Get standard string names for the final dataframe columns
+        chem_name = chem_groups[chem_id][0]["text"].lower()
+        dis_name = dis_groups[dis_id][0]["text"].lower()
+        
+        candidate_rows.append({
+            "document_id": row["document_id"],
+            "chemical": chem_name,
+            "disease": dis_name,
+            "chemical_id": chem_id,
+            "disease_id": dis_id,
+            "masked_text": masked_text,
+            "label": label
+        })
+        
+    return candidate_rows

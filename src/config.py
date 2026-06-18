@@ -12,13 +12,18 @@ class EnvConfig:
 @dataclass
 class DataConfig:
     """Configuration for the data."""
-    dataset_name: str = "bigbio/bc5cdr"
     data_folder: Path = Path("data/documents")
+    dataset_name: str = "bigbio/bc5cdr"
+    flattened_dataset_name: Path = Path("data/processed/bc5cdr_flattened")
+    relations_dataset_name: Path = Path("data/processed/bc5cdr_relations")
+    structured_file: Path = Path("data/processed/structured_data.parquet")
+    structured_checkpoint_file: Path = Path("data/checkpoints/structured_checkpoint.parquet")
 
 
 @dataclass
 class ModelConfig:
-    """Configuration for the model."""
+    """Model configurations."""
+    
     # --- NER ---
     ner_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1"
     ner_model_checkpoint: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract"
@@ -27,6 +32,17 @@ class ModelConfig:
         "B-Chemical", "I-Chemical", 
         "B-Disease", "I-Disease"
     ])
+    
+    # --- Structured extraction ---
+    client_tagger_checkpoint: str = "groq/qwen/qwen3-32b"
+    local_tagger_checkpoint_small: str = "Qwen/Qwen2.5-7B-Instruct"
+    local_tagger_checkpoint_medium: str = "Qwen/Qwen2.5-14B-Instruct"
+    local_tagger_checkpoint_large: str = "Qwen/Qwen2.5-32B-Instruct"
+
+    # --- Relation ---
+    relation_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-relation-bc5cdr-LoRA-v1.1"
+    relation_model_checkpoint: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-relation"
+
 
 
 @dataclass
