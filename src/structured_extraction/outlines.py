@@ -21,7 +21,7 @@ _LOCAL_MODEL_CACHE = {}
 load_dotenv()
 hf_token = os.getenv("HF_TOKEN")
 
-
+ 
 class OutlinesInstructorWrapper:
     """Wraps an Outlines Hugging Face model to mimic Instructor's functional signature."""
     def __init__(self, outlines_model):
@@ -31,7 +31,7 @@ class OutlinesInstructorWrapper:
 
         chat_prompt = Chat(messages)
         
-        max_new_tokens = kwargs.get("max_new_tokens", 512)
+        max_new_tokens = kwargs.get("max_new_tokens", 256)
         gen_kwargs = {"max_new_tokens": max_new_tokens}
         if temperature == 0.0:
             gen_kwargs["do_sample"] = False
@@ -50,7 +50,11 @@ class OutlinesInstructorWrapper:
         return response_model.model_validate_json(json_str)
 
 
-def _get_model(model_checkpoint: str, use_local_model: bool = False, verbose: bool = False):
+def _get_model(
+        model_checkpoint: str, 
+        use_local_model: bool = False,
+        quantize_model: bool = False, 
+        verbose: bool = False):
     """Return (client, create) where one element is None depending on provider type.
 
     - client: an Instructor client with `.create()` when using provider APIs
@@ -59,6 +63,15 @@ def _get_model(model_checkpoint: str, use_local_model: bool = False, verbose: bo
     global _LOCAL_MODEL_CACHE
     client = None
     create = None
+
+    # Prevent double-quantization (on-the-fly + pre-quantized)
+    pre_quantized_keywords = ['awq', 'gptq', 'gguf', 'int4', 'int8', '4bit', '8bit', 'quantized']
+    is_pre_quantized_model = any(keyword in model_checkpoint.lower() for keyword in pre_quantized_keywords)
+    assert not (quantize_model and is_pre_quantized_model), (
+        f"Conflict detected! You set quantized_model=True, but the model checkpoint "
+        f"'{model_checkpoint}' appears to already be pre-quantized. "
+        f"Set quantized_model to False to use this pre-quantized model safely."
+    )
 
     # Check if this exact model configuration is already active in VRAM
     cache_key = (model_checkpoint, use_local_model)
@@ -75,11 +88,15 @@ def _get_model(model_checkpoint: str, use_local_model: bool = False, verbose: bo
     else:
         print(f"ℹ️ Using local model via Outlines & Transformers: {model_checkpoint}")
 
-        quant_config = None
-        
-        is_small_model = any(size_tag in model_checkpoint.lower() for size_tag in ["3b", "1.5b", "1b", "0.5b"])
-        if not is_small_model:
-            quant_config = BitsAndBytesConfig(
+        load_kwargs = {
+                    "torch_dtype": "auto",
+                    "device_map": "auto",
+                    "attn_implementation": "sdpa",  # Activates optimized hardware attention loops
+                    "low_cpu_mem_usage": True       # Prevents system RAM spikes
+                }
+
+        if quantize_model:
+            load_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.bfloat16,
                 bnb_4bit_quant_type="nf4",
@@ -88,19 +105,16 @@ def _get_model(model_checkpoint: str, use_local_model: bool = False, verbose: bo
         
         hf_model = AutoModelForCausalLM.from_pretrained(
             model_checkpoint,
-            quantization_config = quant_config,
-            torch_dtype="auto",
-            device_map="auto",
-            attn_implementation="sdpa",  # <-- Activates optimized hardware attention loops
-            token=hf_token if hf_token else False,
+            token=hf_token if hf_token else None,
+            **load_kwargs,
         )
         hf_tokenizer = AutoTokenizer.from_pretrained(
             model_checkpoint,
-            token = hf_token if hf_token else False,
-            )
+            token=hf_token if hf_token else None,
+        )
 
         outlines_model = outlines.from_transformers(hf_model, hf_tokenizer)
-        
+
         create = OutlinesInstructorWrapper(outlines_model)
 
     _LOCAL_MODEL_CACHE[cache_key] = (client, create)
@@ -124,6 +138,7 @@ def get_response(
     structured_checkpoint_file: Path | None,
     response_model,
     instruction: str,
+    quantize_model: bool = False,
     temperature: float = 0.0,
     max_retries: int = 1,
     checkpoint_steps: int = 50,
@@ -151,6 +166,7 @@ def get_response(
     client, create = _get_model(
         model_checkpoint=model_checkpoint, 
         use_local_model=use_local_model,
+        quantize_model=quantize_model,
         verbose=verbose
     )
     create_callable = _get_create_callable(client, create)
@@ -194,10 +210,13 @@ def get_response(
                 chemical = row['chemical']
                 disease = row['disease']
                 content = (
-                    f"Analyze the relationship between the target chemical '{chemical}' and the target disease '{disease}' "
-                    f"in the text below. Carefully evaluate the context for potential drug antagonism or linguistic polysemy "
-                    f"as detailed in your system instructions.\n\n"
-                    f"Text: {row[text_col]}"
+                    f"TARGET CHEMICAL TO EVALUATE: {chemical}\n"
+                    f"TARGET DISEASE TO EVALUATE: {disease}\n\n"
+                    f"CRITICAL ASSIGNMENT: Locate the specific instances of '{chemical}' wrapped in <chemical>...</chemical> "
+                    f"and '{disease}' wrapped in <disease>...</disease> in the text below.\n\n"
+                    f"Text:\n{row[text_col]}\n\n"
+                    f"Question: What is the direct relationship of the TAGGED <chemical>{chemical}</chemical> "
+                    f"towards the TAGGED <disease>{disease}</disease>?"
                 )
 
                 item_id = row[id_col]
