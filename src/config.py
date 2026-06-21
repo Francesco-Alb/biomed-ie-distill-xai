@@ -16,8 +16,8 @@ class DataConfig:
     dataset_name: str = "bigbio/bc5cdr"
     flattened_dataset_name: Path = Path("data/processed/bc5cdr_flattened")
     relations_dataset_name: Path = Path("data/processed/bc5cdr_relations")
-    structured_file: Path = Path("data/processed/structured_data.parquet")
-    structured_checkpoint_file: Path = Path("data/checkpoints/structured_checkpoint.parquet")
+    structured_file: Path = Path("data/processed/structured_data")
+    structured_checkpoint_file: Path = Path("data/checkpoints/structured_data")
 
 
 @dataclass
