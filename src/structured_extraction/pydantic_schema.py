@@ -5,10 +5,12 @@ from typing import List, Literal
 # --- Micro / Pair-by-Pair ---
 
 class PairwiseExtraction(BaseModel):
+    chemical: str = Field(description="The exact chemical name evaluated.")
+    disease: str = Field(description="The exact disease name evaluated.")
     chain_of_thought: str = Field(
         description=(
-            "A brief 1-sentence clinical analysis tracing the structural or therapeutic "
-            "interaction between the chemical and disease based strictly on the text. "
+            "A brief 1-sentence clinical analysis explicitly stating what the CHEMICAL does "
+            "to the DISEASE in this text. Format exactly as: '[Chemical] [interacts/has no link/treats/causes] [Disease] because...'"
         )
     )
     weak_label: Literal["0", "1", "2", "3"] = Field(
@@ -26,8 +28,8 @@ class MacroRelation(BaseModel):
     disease: str = Field(description="The exact disease name from the candidate list evaluated.")
     chain_of_thought: str = Field(
         description=(
-            "A brief 1-sentence clinical analysis tracing the structural or therapeutic "
-            "interaction between the chemical and disease based strictly on the text. "
+            "A brief 1-sentence clinical analysis explicitly stating what the CHEMICAL does "
+            "to the DISEASE in this text. Format exactly as: '[Chemical] [interacts/has no link/treats/causes] [Disease] because...'"
         )
     )
     weak_label: Literal["0", "1", "2", "3"] = Field(
@@ -41,4 +43,3 @@ class MacroRelation(BaseModel):
 
 class GlobalExtraction(BaseModel):
     relationships: List[MacroRelation] = Field(description="List of all candidate entity evaluations.")
-
