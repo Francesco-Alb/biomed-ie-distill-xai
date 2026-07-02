@@ -1,21 +1,23 @@
 # This file lists the dependencies for the weak supervision step.
-# Uses an open-source LLM (llama.cpp) to generate weak labels for training.
 
 -r 00_core.txt
 
-transformers
-datasets
+# --- Core ML Framework & Engines ---
 torch
+outlines
+
+# --- Quantization and Acceleration ---
 torchao==0.17.0
+accelerate 
+bitsandbytes
+# gptqmodel
+# autoawq
+
+# --- Data and Models ---
+transformers<5.0.0
+datasets
+
+# --- API Clients and Structured Outputs ---
 groq 
 instructor 
 pydantic
-
-# --- If using outlines
-outlines
-accelerate 
-bitsandbytes
-
-# --- If using llama-cpp
-# llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu130
-#==0.3.20

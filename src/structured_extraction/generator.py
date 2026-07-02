@@ -18,18 +18,19 @@ import outlines
 from outlines.inputs import Chat
 
 from src.structured_extraction.pydantic_schema import PairwiseExtraction, GlobalExtraction
+from src.utils import verbose_print
 
 _LOCAL_MODEL_CACHE = {}
 
 load_dotenv()
 hf_token = os.getenv("HF_TOKEN")
 
- 
+
 class OutlinesInstructorWrapper:
     """Wraps an Outlines Hugging Face model to mimic Instructor's functional signature."""
-    def __init__(self, outlines_model, model_source: str):
+    def __init__(self, outlines_model, verbose: bool = False):
         self.outlines_model = outlines_model
-        model_source = model_source
+        self.verbose = verbose
 
     def __call__(self, messages, output_type, **kwargs):
 
@@ -41,9 +42,16 @@ class OutlinesInstructorWrapper:
             **kwargs
         )
 
-        print(kwargs)
-        print(type(json_str))
-        print(json_str)
+        if self.verbose:
+            verbose_print(
+                self.verbose,
+                "[DEBUG] Outlines kwargs:",
+                kwargs,
+                "[DEBUG] Response type:",
+                type(json_str),
+                "[DEBUG] Raw output:",
+                json_str,
+            )
         
         # Parse the raw JSON string into a native Pydantic instance to support downstream .model_dump()
         return output_type.model_validate_json(json_str)
@@ -54,6 +62,7 @@ def _get_model(
         model_source: str = "api",
         quantize_model: bool = False,
         tensor_parallel_size: int = 2,
+        verbose: bool = False,
         ):
     """Return (client, create) where one element is None depending on provider type.
 
@@ -69,8 +78,11 @@ def _get_model(
         raise ValueError(
             f"model_source must be one of {sorted(valid_sources)}, got '{model_source}'"
         )
-    
+
+    quantization_config = None
     if quantize_model and model_source != "api":
+        from transformers import BitsAndBytesConfig
+
         pre_quantized_keywords = ['awq', 'gptq', 'gguf', 'int4', 'int8', '4bit', '8bit', 'quantized']
         is_pre_quantized_model = any(keyword in model_checkpoint.lower() for keyword in pre_quantized_keywords)
         assert not (quantize_model and is_pre_quantized_model), (
@@ -79,11 +91,11 @@ def _get_model(
             f"Set quantized_model to False to use this pre-quantized model safely."
         )
         quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-            )
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+        )
 
     # Check if this exact model configuration is already active in VRAM
     cache_key = (model_checkpoint, model_source, quantize_model, tensor_parallel_size)
@@ -97,7 +109,7 @@ def _get_model(
             model_checkpoint,
             mode=instructor.Mode.TOOLS,
         )
-    
+
     elif model_source == "llama_cpp":
         from llama_cpp import Llama
 
@@ -118,7 +130,7 @@ def _get_model(
         gguf_files = sorted([f for f in os.listdir(model_dir) if f.endswith('.gguf')])
         if not gguf_files:
             raise FileNotFoundError(f"No GGUF files found matching pattern in {model_dir}")
-        first_file = gguf_files[0]        
+        first_file = gguf_files[0]
         model_path = os.path.join(model_dir, first_file)
         print(f"Model path: {model_path}")
 
@@ -133,10 +145,10 @@ def _get_model(
             )
         )
 
-        create = OutlinesInstructorWrapper(outlines_model, model_source)
+        create = OutlinesInstructorWrapper(outlines_model, verbose=verbose)
 
     elif model_source == "transformers":
-        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         print(f"ℹ️ Using local model via Outlines & Transformers: {model_checkpoint}")
 
@@ -161,16 +173,16 @@ def _get_model(
         )
 
         outlines_model = outlines.from_transformers(hf_model, hf_tokenizer)
-        create = OutlinesInstructorWrapper(outlines_model, model_source)
+        create = OutlinesInstructorWrapper(outlines_model, verbose=verbose)
 
     elif model_source == "vllm_offline":
-        from vllm import LLM, SamplingParams
+        from vllm import LLM
 
         print(f"ℹ️ Using local model via Outlines vLLM Offline: {model_checkpoint}")
 
         llm = LLM(
-            model=model_checkpoint, 
-            tensor_parallel_size=tensor_parallel_size
+            model=model_checkpoint,
+            tensor_parallel_size=tensor_parallel_size,
         )
 
         model_kwargs = {
@@ -182,9 +194,9 @@ def _get_model(
 
         outlines_model = outlines.from_vllm_offline(
             model_checkpoint,
-            **model_kwargs
+            **model_kwargs,
         )
-        create = OutlinesInstructorWrapper(outlines_model, model_source)
+        create = OutlinesInstructorWrapper(outlines_model, verbose=verbose)
 
     _LOCAL_MODEL_CACHE[cache_key] = (client, create)
     return client, create
@@ -214,11 +226,12 @@ def get_response(
     temperature: float = 0.0,
     max_retries: int = 1,
     max_tokens: int|str = "auto",
-    checkpoint_steps: int = 50,
+    checkpoint_steps: int = 25,
     sleep_time: int = 5,
-    n_rows_to_process: int | None = None,
+    n_rows_to_process: int = 50,
     dataset_split: str = "train",
-    drop_nans_from_checkpoint: bool = False
+    drop_invalid_from_checkpoint: bool = False,
+    verbose: bool = False,
 ) -> pd.DataFrame:
     """
     Process a DataFrame or a `datasets.DatasetDict` and extract structured responses using an LLM.
@@ -238,11 +251,15 @@ def get_response(
     if not id_col or id_col not in df.columns:
         raise ValueError("Make sure id_col is provided and exists in the DataFrame.")
 
+    if is_macro and df_exploded_reference is None:
+            raise ValueError("df_exploded_reference must be provided when is_macro=True")
+
     client, create = _get_model(
         model_checkpoint=model_checkpoint,
         model_source=model_source,
         quantize_model=quantize_model,
         tensor_parallel_size=tensor_parallel_size,
+        verbose=verbose,
     )
     create_callable = _get_create_callable(client, create)
 
@@ -258,25 +275,41 @@ def get_response(
         if structured_checkpoint_file is not None and os.path.exists(structured_checkpoint_file):
             print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
             current_processed_data = pd.read_parquet(structured_checkpoint_file)
-            if drop_nans_from_checkpoint:
+            if drop_invalid_from_checkpoint:
                 print("🗑️ Dropping rows with NaN values from checkpoint before resuming.")
-                current_processed_data = current_processed_data.dropna()
-            processed_ids = set(current_processed_data[id_col].unique())
+                current_processed_data = current_processed_data.dropna(
+                    subset=[id_col, "weak_label", "extraction_status"]
+                )
+                if "extraction_status" in current_processed_data.columns:
+                    status_ok = (
+                        current_processed_data
+                        .groupby(id_col)["extraction_status"]
+                        .apply(lambda statuses: all(status == "SUCCESS" for status in statuses))
+                    )
+                    processed_ids = set(status_ok[status_ok].index)
+                else:
+                    processed_ids = set(current_processed_data[id_col].unique())
+            else:
+                processed_ids = set(current_processed_data[id_col].unique())
             print(f"✅ Loaded {len(processed_ids)} unique ids from checkpoint.")
         else:
             print("Starting full instructor/outlines pipeline...")
 
         remaining_df = df[~df[id_col].isin(processed_ids)].copy()
-        if n_rows_to_process is not None:
-            remaining_df = remaining_df.head(n_rows_to_process)
+
+        if n_rows_to_process <= 0:
+            raise ValueError("n_rows_to_process must be a positive integer.")
+        
+        remaining_df = remaining_df.head(n_rows_to_process)
+
         print(f"Total items to process: {len(remaining_df)}")
 
         max_tokens_arg = "max_tokens"
         gen_kwargs = {
             # "max_retries": max_retries,
+            # "stop": ["```"],
             "output_type": output_type,
             "temperature": temperature,
-            # "stop": ["```"],
         }
 
         if model_source == "transformers":
@@ -292,13 +325,26 @@ def get_response(
             batch_df = remaining_df.iloc[i: i + checkpoint_steps]
             batch_results = []
 
+            if verbose:
+                verbose_print(
+                    verbose,
+                    "\n" + "=" * 60,
+                    f"Batch {i // checkpoint_steps + 1} | rows {i} to {i + len(batch_df) - 1}",
+                    "=" * 60,
+                )
+
             for index, row in tqdm(batch_df.iterrows(), total=len(batch_df), leave=False):
                 item_id = row[id_col]
+
+                if verbose:
+                    verbose_print(
+                        verbose,
+                        f"⏳ Processing row {index} | {id_col}={item_id}",
+                        "-" * 60,
+                    )
                 
                 # --- BRANCH A: MACRO LOGIC (Abstract-Level) ---
                 if is_macro:
-                    if df_exploded_reference is None:
-                        raise ValueError("df_exploded_reference must be provided when is_macro=True")
                 
                     # Fetch the exact candidate pairs assigned to this abstract
                     doc_candidates = df_exploded_reference[df_exploded_reference[id_col] == item_id]
@@ -309,11 +355,16 @@ def get_response(
                     candidate_list_str = "\n".join(candidate_list)
                     n_candidates = len(candidate_list)
 
-                    print(f"n_candidates: {n_candidates}" )
-                    print(f"candidate_list_str: {candidate_list_str}")
-
                     current_max_tokens = min(4096, 512 + (n_candidates * 300)) if max_tokens == "auto" else max_tokens
                     gen_kwargs[max_tokens_arg] = current_max_tokens
+
+                    if verbose:
+                        verbose_print(
+                            verbose,
+                            f"Macro mode detected. Candidate count: {n_candidates}",
+                            f"Max tokens set to: {current_max_tokens}",
+                            "Candidate list:\n" + candidate_list_str,
+                        )
 
                     content = (
                         f"Abstract Text:\n{row[text_col]}\n\n"
@@ -330,6 +381,16 @@ def get_response(
                     current_max_tokens = 512 if max_tokens == "auto" else max_tokens
                     gen_kwargs[max_tokens_arg] = current_max_tokens
                     
+                    if verbose:
+                        verbose_print(
+                            verbose,
+                            "Micro mode detected.",
+                            f"Chemical: {row['chemical']}",
+                            f"Disease: {row['disease']}",
+                            f"Max tokens set to: {current_max_tokens}",
+                            f"Text preview: {row['masked_text'][:160]}{'...' if len(row['masked_text']) > 160 else ''}",
+                        )
+                    
                     content = (
                         f"TARGET CHEMICAL TO EVALUATE: {row['chemical']}\n"
                         f"TARGET DISEASE TO EVALUATE: {row['disease']}\n\n"
@@ -342,7 +403,6 @@ def get_response(
                     time.sleep(sleep_time)
 
                 try:
-                    print(current_max_tokens)
                     analysis = create_callable(
                         **gen_kwargs,
                         messages=[
