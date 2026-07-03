@@ -35,9 +35,9 @@ class ModelConfig:
     
     # --- Structured extraction ---
     client_tagger_checkpoint: str = "groq/qwen/qwen3-32b"
-    local_tagger_checkpoint_small: str = "Qwen/Qwen2.5-7B-Instruct"
-    local_tagger_checkpoint_medium: str = "Qwen/Qwen2.5-14B-Instruct"
-    local_tagger_checkpoint_large: str = "Qwen/Qwen2.5-32B-Instruct"
+    local_tagger_checkpoint_small: str = "Qwen/Qwen2.5-7B-Instruct-GGUF"
+    local_tagger_checkpoint_medium: str = "Qwen/Qwen2.5-14B-Instruct-GGUF"
+    local_tagger_checkpoint_large: str = "Qwen/Qwen2.5-32B-Instruct-GGUF"
 
     # --- Relation ---
     relation_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-relation-bc5cdr-LoRA-v1.1"

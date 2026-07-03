@@ -242,9 +242,20 @@ def get_response(
             raise ValueError(f"dataset_split '{dataset_split}' not found in DatasetDict")
         df = df_to_structure[dataset_split].to_pandas()
     elif isinstance(df_to_structure, Dataset):
-        df = df_to_structure.to_pandas()
+        df = df_to_structure[dataset_split].to_pandas()
     else:
         df = df_to_structure.copy()
+
+    # Normalize df_exploded_reference: allow DatasetDict / Dataset / pandas.DataFrame
+    if df_exploded_reference is not None:
+        if isinstance(df_exploded_reference, DatasetDict):
+            if dataset_split not in df_exploded_reference:
+                raise ValueError(f"dataset_split '{dataset_split}' not found in df_exploded_reference DatasetDict")
+            df_exploded_reference = df_exploded_reference[dataset_split].to_pandas()
+        elif isinstance(df_exploded_reference, Dataset):
+            df_exploded_reference = df_exploded_reference[dataset_split].to_pandas()
+        else:
+            df_exploded_reference = df_exploded_reference.copy()
 
     output_type = GlobalExtraction if is_macro else PairwiseExtraction
 
