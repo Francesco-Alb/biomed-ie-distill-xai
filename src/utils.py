@@ -1,4 +1,6 @@
+import os
 import sys
+import shutil
 import importlib
 import random
 import numpy as np
@@ -6,6 +8,9 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datasets import Dataset
+from pathlib import Path
+from typing import Any, Union
+
 
 def dynamic_module_reloader(
         modules: str|list[str] = "",
@@ -29,6 +34,7 @@ def dynamic_module_reloader(
             except Exception as e:
                 print(f"Warning: Could not reload {name}: {e}")
 
+
 def verbose_print(verbose: bool, *messages, sep: str = "\n"):
     if verbose:
         print(*messages, sep=sep)
@@ -50,6 +56,70 @@ def seed_everything(seed: int) -> None:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
     print(f"✅ Seed set to {seed}")
+
+
+def setup_kaggle_environment(
+    config: Any, 
+    suffix: str, 
+    kaggle_input_dir: Union[str, Path] = "/kaggle/input/datasets/username/datasetname",
+    is_kaggle: bool = False, 
+) -> None:
+    """
+    Configures and stages environment paths when running inside a Kaggle notebook.
+
+    This function overwrites read-only configuration dataset paths to point to 
+    Kaggle's input directories, sets up writable working directories for checkpoints 
+    and results, and automatically handles staging/resuming existing checkpoints.
+
+    Args:
+        config (Any): The global configuration object containing data path attributes.
+        is_kaggle (bool): Flag indicating if the current runtime is Kaggle.
+            Defaults to False
+        suffix (str): The filename or subpath suffix for the active checkpoint.
+        kaggle_input_dir (Union[str, Path], optional): The base path for Kaggle input datasets. 
+            Defaults to "/kaggle/input/datasets/username/datasetname".
+
+    Returns:
+        None
+    """
+    if not is_kaggle:
+        return
+
+    print("💡 Kaggle environment detected. Overwriting config paths at runtime...")
+
+    # Ensure kaggle_input_dir is a Path object
+    kaggle_input_base = Path(kaggle_input_dir)
+
+    # --- INPUT DATASETS (Read-Only Input Paths) ---
+    config.data.flattened_dataset_name = kaggle_input_base / "bc5cdr_flattened"
+    config.data.relations_dataset_name = kaggle_input_base / "bc5cdr_relations"
+    
+    # --- OUTPUT RUNTIMES (Read-Write Working Paths) ---
+    kaggle_working_dir = Path("/kaggle/working")
+    
+    # Redirect the base directories to your writable working workspace
+    config.data.structured_checkpoint_file = kaggle_working_dir / "checkpoints/structured_data"
+    config.data.structured_file = kaggle_working_dir / "results"
+    
+    # Force create the target directory structures inside /kaggle/working so pandas doesn't throw errors
+    config.data.structured_checkpoint_file.mkdir(parents=True, exist_ok=True)
+    config.data.structured_file.mkdir(parents=True, exist_ok=True)
+        
+    # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
+    uploaded_checkpoint_path = kaggle_input_base / "checkpoints/structured_data" / suffix
+    # Path where your pipeline expects to read AND write active checkpoints
+    active_working_checkpoint = config.data.structured_checkpoint_file / suffix
+    
+    # If a fresh session started but you uploaded an existing checkpoint to Kaggle, copy it over to the writable space
+    if not active_working_checkpoint.exists() and uploaded_checkpoint_path.exists():
+        print(f"🔄 Staging: Copying read-only input checkpoint to writable workspace:\n   ↳ {active_working_checkpoint}")
+        shutil.copy(uploaded_checkpoint_path, active_working_checkpoint)
+        print("✅ Checkpoint successfully prepared for write operations.")
+    elif active_working_checkpoint.exists():
+        checkpoint_size_kb = active_working_checkpoint.stat().st_size / 1024
+        print(f"🔄 Active Session: Resuming from active working directory checkpoint ({checkpoint_size_kb:.2f} KB)")
+    else:
+        print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
 
 
 def plot_length_distribution_with_percentiles(
