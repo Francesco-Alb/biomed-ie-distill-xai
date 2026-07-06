@@ -113,7 +113,7 @@ def setup_kaggle_environment(
     # If a fresh session started but you uploaded an existing checkpoint to Kaggle, copy it over to the writable space
     active_checkpoint_is_valid = (
         active_working_checkpoint.exists()
-        and active_working_checkpoint.stat().st_size > 0
+        and any(active_working_checkpoint.iterdir())
     )
 
     if not active_checkpoint_is_valid and uploaded_checkpoint_path.exists():
