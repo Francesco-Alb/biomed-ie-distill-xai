@@ -111,11 +111,16 @@ def setup_kaggle_environment(
     active_working_checkpoint = config.data.structured_checkpoint_file / suffix
     
     # If a fresh session started but you uploaded an existing checkpoint to Kaggle, copy it over to the writable space
-    if not active_working_checkpoint.exists() and uploaded_checkpoint_path.exists():
+    active_checkpoint_is_valid = (
+        active_working_checkpoint.exists()
+        and active_working_checkpoint.stat().st_size > 0
+    )
+
+    if not active_checkpoint_is_valid and uploaded_checkpoint_path.exists():
         print(f"🔄 Staging: Copying read-only input checkpoint to writable workspace:\n   ↳ {active_working_checkpoint}")
         shutil.copy(uploaded_checkpoint_path, active_working_checkpoint)
         print("✅ Checkpoint successfully prepared for write operations.")
-    elif active_working_checkpoint.exists():
+    elif active_checkpoint_is_valid:
         checkpoint_size_kb = active_working_checkpoint.stat().st_size / 1024
         print(f"🔄 Active Session: Resuming from active working directory checkpoint ({checkpoint_size_kb:.2f} KB)")
     else:

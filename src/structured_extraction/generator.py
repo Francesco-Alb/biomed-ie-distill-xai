@@ -287,7 +287,7 @@ def get_response(
             print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
             current_processed_data = pd.read_parquet(structured_checkpoint_file)
             if drop_invalid_from_checkpoint:
-                print("🗑️ Dropping rows with NaN values from checkpoint before resuming.")
+                print("🗑️ Dropping invalid rows from checkpoint before resuming.")
                 current_processed_data = current_processed_data.dropna(
                     subset=[id_col, "weak_label", "extraction_status"]
                 )
