@@ -118,7 +118,10 @@ def setup_kaggle_environment(
 
     if not active_checkpoint_is_valid and uploaded_checkpoint_path.exists():
         print(f"🔄 Staging: Copying read-only input checkpoint to writable workspace:\n   ↳ {active_working_checkpoint}")
-        shutil.copy(uploaded_checkpoint_path, active_working_checkpoint)
+        if uploaded_checkpoint_path.is_dir():
+            shutil.copytree(uploaded_checkpoint_path, active_working_checkpoint, dirs_exist_ok=True)
+        else:
+            shutil.copy(uploaded_checkpoint_path, active_working_checkpoint)
         print("✅ Checkpoint successfully prepared for write operations.")
     elif active_checkpoint_is_valid:
         checkpoint_size_kb = active_working_checkpoint.stat().st_size / 1024
