@@ -62,6 +62,7 @@ def _get_model(
         model_source: str = "api",
         quantize_model: bool = False,
         tensor_parallel_size: int = 2,
+        n_ctx: int = 4096,
         verbose: bool = False,
         ):
     """Return (client, create) where one element is None depending on provider type.
@@ -98,7 +99,7 @@ def _get_model(
         )
 
     # Check if this exact model configuration is already active in VRAM
-    cache_key = (model_checkpoint, model_source, quantize_model, tensor_parallel_size)
+    cache_key = (model_checkpoint, model_source, quantize_model, tensor_parallel_size, n_ctx)
     if cache_key in _LOCAL_MODEL_CACHE:
         if model_source != "api":
             print("ℹ️ Model already loaded in VRAM. Reusing active session...")
@@ -139,7 +140,7 @@ def _get_model(
                 model_path=model_path,
                 n_gpu_layers=-1,
                 n_batch=512,
-                n_ctx=4096,
+                n_ctx=n_ctx,
                 # chat_format="qwen",
                 verbose=False,
             )
@@ -183,6 +184,7 @@ def _get_model(
         llm = LLM(
             model=model_checkpoint,
             tensor_parallel_size=tensor_parallel_size,
+            # max_model_len=n_ctx,
         )
 
         model_kwargs = {
@@ -219,13 +221,15 @@ def get_response(
     df_exploded_reference: pd.DataFrame | None = None, # Required ONLY if is_macro=True
     structured_file: Path | None = None,
     structured_checkpoint_file: Path | None = None,
-    is_macro: bool = False,
+    is_macro: bool = True,
     quantize_model: bool = False,
     model_source: str = "api",
     tensor_parallel_size: int = 2,
     temperature: float = 0.0,
     max_retries: int = 1,
     max_tokens: int|str = "auto",
+    tokens_per_candidate: int = 300,
+    n_ctx: int = 4096,
     checkpoint_steps: int = 25,
     sleep_time: int = 5,
     n_rows_to_process: int = 50,
@@ -270,6 +274,7 @@ def get_response(
         model_source=model_source,
         quantize_model=quantize_model,
         tensor_parallel_size=tensor_parallel_size,
+        n_ctx=n_ctx,
         verbose=verbose,
     )
     create_callable = _get_create_callable(client, create)
@@ -287,7 +292,6 @@ def get_response(
             print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
             current_processed_data = pd.read_parquet(structured_checkpoint_file)
             if drop_invalid_from_checkpoint:
-                print("🗑️ Dropping invalid rows from checkpoint before resuming.")
                 current_processed_data = current_processed_data.dropna(
                     subset=[id_col, "weak_label", "extraction_status"]
                 )
@@ -298,6 +302,8 @@ def get_response(
                         .apply(lambda statuses: all(status == "SUCCESS" for status in statuses))
                     )
                     processed_ids = set(status_ok[status_ok].index)
+                    n_dropped = len(current_processed_data) - len(processed_ids)
+                    print(f"🗑️ Dropping {n_dropped} invalid rows from checkpoint before resuming.")
                 else:
                     processed_ids = set(current_processed_data[id_col].unique())
             else:
@@ -366,7 +372,7 @@ def get_response(
                     candidate_list_str = "\n".join(candidate_list)
                     n_candidates = len(candidate_list)
 
-                    current_max_tokens = min(4096, 512 + (n_candidates * 300)) if max_tokens == "auto" else max_tokens
+                    current_max_tokens = min(4096, 512 + (n_candidates * tokens_per_candidate)) if max_tokens == "auto" else max_tokens
                     gen_kwargs[max_tokens_arg] = current_max_tokens
 
                     if verbose:
