@@ -218,23 +218,25 @@ def get_response(
     instruction: str,
     df_to_structure: pd.DataFrame | datasets.dataset_dict.DatasetDict,
     model_checkpoint: str,
+    model_source: str = "api",
     df_exploded_reference: pd.DataFrame | None = None, # Required ONLY if is_macro=True
     structured_file: Path | None = None,
     structured_checkpoint_file: Path | None = None,
     is_macro: bool = True,
     quantize_model: bool = False,
-    model_source: str = "api",
     tensor_parallel_size: int = 2,
     temperature: float = 0.0,
     max_retries: int = 1,
     max_tokens: int|str = "auto",
     tokens_per_candidate: int = 300,
     n_ctx: int = 4096,
-    checkpoint_steps: int = 25,
+    checkpoint_steps: int = 15,
     sleep_time: int = 5,
     n_rows_to_process: int = 50,
     dataset_split: str = "train",
     drop_invalid_from_checkpoint: bool = False,
+    recovery_mode: bool = False,
+    smoke_test: bool = False,
     verbose: bool = False,
 ) -> pd.DataFrame:
     """
@@ -269,6 +271,18 @@ def get_response(
     if is_macro and df_exploded_reference is None:
             raise ValueError("df_exploded_reference must be provided when is_macro=True")
 
+    if recovery_mode:
+        print("🛠️ Recovery Mode Active: Optimizing environment for failed rows...")
+        drop_invalid_from_checkpoint = True
+        tokens_per_candidate = 500
+        n_ctx = 8192
+
+    if smoke_test:
+        print("🔥 Smoke Test Mode Active: Processing only 4 rows for quick validation...")
+        n_rows_to_process = 4
+        checkpoint_steps = 2
+        sleep_time = 1
+
     client, create = _get_model(
         model_checkpoint=model_checkpoint,
         model_source=model_source,
@@ -279,22 +293,26 @@ def get_response(
     )
     create_callable = _get_create_callable(client, create)
 
+    processed_ids = set()
+    current_processed_data = pd.DataFrame()
+
     if structured_file is not None and os.path.exists(structured_file):
         print("📂 Loading existing processed data from final file...")
         structure_only_df = pd.read_parquet(structured_file)
         print(f"✅ Loaded {len(structure_only_df)} rows.")
+
     else:
         print("ℹ️ Final processed/structured file not found. Checking for checkpoint...")
-        processed_ids = set()
-        current_processed_data = pd.DataFrame()
 
         if structured_checkpoint_file is not None and os.path.exists(structured_checkpoint_file):
             print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
             current_processed_data = pd.read_parquet(structured_checkpoint_file)
+            
             if drop_invalid_from_checkpoint:
-                current_processed_data = current_processed_data.dropna(
-                    subset=[id_col, "weak_label", "extraction_status"]
-                )
+                if False: # deactivated for now; weak_labels where the model failed are already marked with None
+                    current_processed_data = current_processed_data.dropna(
+                        subset=[id_col, "weak_label", "extraction_status"]
+                    )
                 if "extraction_status" in current_processed_data.columns:
                     status_ok = (
                         current_processed_data
@@ -302,8 +320,12 @@ def get_response(
                         .apply(lambda statuses: all(status == "SUCCESS" for status in statuses))
                     )
                     processed_ids = set(status_ok[status_ok].index)
-                    n_dropped = len(current_processed_data) - len(processed_ids)
-                    print(f"🗑️ Dropping {n_dropped} invalid rows from checkpoint before resuming.")
+
+                    total_unique_ids_before =  current_processed_data[id_col].nunique()
+                    n_dropped_ids = total_unique_ids_before - len(processed_ids)
+
+                    print(f"🗑️ Dropping {n_dropped_ids} invalid unique document IDs from checkpoint before resuming.")
+                    current_processed_data = current_processed_data[current_processed_data[id_col].isin(processed_ids)]                
                 else:
                     processed_ids = set(current_processed_data[id_col].unique())
             else:
