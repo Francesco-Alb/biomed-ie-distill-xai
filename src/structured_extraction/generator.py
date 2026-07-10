@@ -394,7 +394,7 @@ def get_response(
                     candidate_list_str = "\n".join(candidate_list)
                     n_candidates = len(candidate_list)
 
-                    current_max_tokens = min(4096, 512 + (n_candidates * tokens_per_candidate)) if max_tokens == "auto" else max_tokens
+                    current_max_tokens = min(n_ctx, 512 + (n_candidates * tokens_per_candidate)) if max_tokens == "auto" else max_tokens
                     gen_kwargs[max_tokens_arg] = current_max_tokens
 
                     if verbose:
