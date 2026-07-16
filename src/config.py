@@ -13,6 +13,7 @@ class EnvConfig:
 class DataConfig:
     """Configuration for the data."""
     data_folder: Path = Path("data/documents")
+    eval_folder: Path = Path("evals")
     dataset_name: str = "bigbio/bc5cdr"
     flattened_dataset_name: Path = Path("data/processed/bc5cdr_flattened")
     relations_dataset_name: Path = Path("data/processed/bc5cdr_relations")

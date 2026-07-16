@@ -220,7 +220,6 @@ def get_response(
     model_checkpoint: str,
     model_source: str = "api",
     df_exploded_reference: pd.DataFrame | None = None, # Required ONLY if is_macro=True
-    structured_file: Path | None = None,
     structured_checkpoint_file: Path | None = None,
     is_macro: bool = True,
     quantize_model: bool = False,
@@ -283,65 +282,57 @@ def get_response(
         checkpoint_steps = 2
         sleep_time = 1
 
-    client, create = _get_model(
-        model_checkpoint=model_checkpoint,
-        model_source=model_source,
-        quantize_model=quantize_model,
-        tensor_parallel_size=tensor_parallel_size,
-        n_ctx=n_ctx,
-        verbose=verbose,
-    )
-    create_callable = _get_create_callable(client, create)
-
     processed_ids = set()
     current_processed_data = pd.DataFrame()
 
-    if structured_file is not None and os.path.exists(structured_file):
-        print("📂 Loading existing processed data from final file...")
-        structure_only_df = pd.read_parquet(structured_file)
-        print(f"✅ Loaded {len(structure_only_df)} rows.")
+    if structured_checkpoint_file is not None and os.path.exists(structured_checkpoint_file):
+        print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
+        current_processed_data = pd.read_parquet(structured_checkpoint_file)
+        
+        if drop_invalid_from_checkpoint:
+            if "extraction_status" in current_processed_data.columns:
+                status_ok = (
+                    current_processed_data
+                    .groupby(id_col)["extraction_status"]
+                    .apply(lambda statuses: all(status == "SUCCESS" for status in statuses))
+                )
+                processed_ids = set(status_ok[status_ok].index)
 
-    else:
-        print("ℹ️ Final processed/structured file not found. Checking for checkpoint...")
+                total_unique_ids_before =  current_processed_data[id_col].nunique()
+                n_dropped_ids = total_unique_ids_before - len(processed_ids)
 
-        if structured_checkpoint_file is not None and os.path.exists(structured_checkpoint_file):
-            print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
-            current_processed_data = pd.read_parquet(structured_checkpoint_file)
-            
-            if drop_invalid_from_checkpoint:
-                if False: # deactivated for now; weak_labels where the model failed are already marked with None
-                    current_processed_data = current_processed_data.dropna(
-                        subset=[id_col, "weak_label", "extraction_status"]
-                    )
-                if "extraction_status" in current_processed_data.columns:
-                    status_ok = (
-                        current_processed_data
-                        .groupby(id_col)["extraction_status"]
-                        .apply(lambda statuses: all(status == "SUCCESS" for status in statuses))
-                    )
-                    processed_ids = set(status_ok[status_ok].index)
-
-                    total_unique_ids_before =  current_processed_data[id_col].nunique()
-                    n_dropped_ids = total_unique_ids_before - len(processed_ids)
-
-                    print(f"🗑️ Dropping {n_dropped_ids} invalid unique document IDs from checkpoint before resuming.")
-                    current_processed_data = current_processed_data[current_processed_data[id_col].isin(processed_ids)]                
-                else:
-                    processed_ids = set(current_processed_data[id_col].unique())
+                print(f"🗑️ Dropping {n_dropped_ids} invalid unique document IDs from checkpoint before resuming.")
+                current_processed_data = current_processed_data[current_processed_data[id_col].isin(processed_ids)]                
             else:
                 processed_ids = set(current_processed_data[id_col].unique())
-            print(f"✅ Loaded {len(processed_ids)} unique ids from checkpoint.")
         else:
-            print("Starting full instructor/outlines pipeline...")
+            processed_ids = set(current_processed_data[id_col].unique())
+        print(f"✅ Loaded {len(processed_ids)} unique ids from checkpoint.")
+    else:
+        print("ℹ️ Checkpoint file not found. Starting full instructor/outlines pipeline...")
 
-        remaining_df = df[~df[id_col].isin(processed_ids)].copy()
+    remaining_df = df[~df[id_col].isin(processed_ids)].copy()
 
-        if n_rows_to_process <= 0:
-            raise ValueError("n_rows_to_process must be a positive integer.")
-        
-        remaining_df = remaining_df.head(n_rows_to_process)
+    if n_rows_to_process <= 0:
+        raise ValueError("n_rows_to_process must be a positive integer.")
+    
+    remaining_df = remaining_df.head(n_rows_to_process)
 
+    if remaining_df.empty:
+        print("✅ No remaining rows to process. Exiting.")
+
+    else:
         print(f"Total items to process: {len(remaining_df)}")
+
+        client, create = _get_model(
+            model_checkpoint=model_checkpoint,
+            model_source=model_source,
+            quantize_model=quantize_model,
+            tensor_parallel_size=tensor_parallel_size,
+            n_ctx=n_ctx,
+            verbose=verbose,
+        )
+        create_callable = _get_create_callable(client, create)
 
         max_tokens_arg = "max_tokens"
         gen_kwargs = {
@@ -520,30 +511,24 @@ def get_response(
             else:
                 print(f"No results generated for batch starting at index {i}.")
 
-        structure_only_df = current_processed_data
-        if structured_file is not None:
-            structure_only_df.to_parquet(structured_file, index=False)
-            print(f"💾 Successfully saved {len(structure_only_df)} rows to {structured_file}")
-
     if is_macro:
         for col in ['chemical', 'disease']:
-            if col not in structure_only_df.columns:
-                structure_only_df[col] = None
+            if col not in current_processed_data.columns:
+                current_processed_data[col] = None
 
         structured_df = pd.merge(
             df_exploded_reference, 
-            structure_only_df, 
+            current_processed_data, 
             on=[id_col, 'chemical', 'disease'], 
             how='left'
         )
     else:
         structured_df = pd.merge(
             df, 
-            structure_only_df, 
+            current_processed_data, 
             on=[id_col, 'chemical', 'disease'], 
             how='left'
         )
 
-    
     print(f"✅ Merged structured data with original DataFrame. Resulting DataFrame has {len(structured_df)} rows.")
     return structured_df

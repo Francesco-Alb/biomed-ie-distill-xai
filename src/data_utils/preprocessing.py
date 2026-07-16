@@ -178,3 +178,21 @@ def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
         })
         
     return candidate_rows
+
+
+def merge_datasets_on_key(
+        dataset1: Dataset, 
+        dataset2: Dataset, 
+        on: str = "pair_id", 
+        how: str = "inner"
+) -> Dataset:
+    """Merge two Dataset instances on `on` key using `pandas.DataFrame.merge()`."""
+    df1 = dataset1.to_pandas()
+    df2 = dataset2.to_pandas()
+
+    # Merge on key
+    merged_df = pd.merge(df1, df2, on=on, suffixes=("", "__drop__"))
+    merged_df = merged_df.drop(columns=[col for col in merged_df if col.endswith("__drop__")])
+
+    # Create new Dataset from merged DataFrame
+    return Dataset.from_pandas(merged_df)
