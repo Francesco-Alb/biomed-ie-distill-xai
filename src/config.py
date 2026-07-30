@@ -4,9 +4,15 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Literal
 
+import torch
+
 @dataclass
 class EnvConfig:
     seed: int = 42
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+    smoke_test: bool = False
+    push_to_hub: bool = True
+
 
 
 @dataclass
@@ -40,10 +46,20 @@ class ModelConfig:
     local_tagger_checkpoint_medium: str = "Qwen/Qwen2.5-14B-Instruct-GGUF"
     local_tagger_checkpoint_large: str = "Qwen/Qwen2.5-32B-Instruct-GGUF"
 
-    # --- Relation ---
-    relation_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-relation-bc5cdr-LoRA-v1.1"
-    relation_model_checkpoint: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-relation"
-
+    # --- RE ---
+    align_labels: bool = True
+    re_model_name: str = "Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.1"
+    re_model_checkpoint: str = "yikuan8/Clinical-Longformer"
+    re_label_names_binary: list[str] = field(default_factory=lambda: [
+        "No-Relation",
+        "Chemical-Disease-Relation"
+    ])
+    re_label_names_multiclass: list[str] = field(default_factory=lambda: [
+        "No-Relation", # label 0 
+        "Chemical-Disease-Relation", # label 1
+        "Chemical-Treats-Disease", # label 2
+        "Chemical-Antagonizes-Chemical", # label 3
+    ])
 
 
 @dataclass

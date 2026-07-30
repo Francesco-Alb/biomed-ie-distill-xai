@@ -1,8 +1,4 @@
 from transformers import AutoTokenizer
-import evaluate
-import numpy as np
-
-seqeval = evaluate.load("seqeval")
 
 def tokenize_and_align_labels(
         examples: dict, 
@@ -65,38 +61,3 @@ def tokenize_and_align_labels(
         
     tokenized_inputs["labels"] = labels
     return tokenized_inputs
-
-def compute_metrics_ner(
-        p: tuple[np.ndarray, np.ndarray], 
-        label_list: list[str]
-        ) -> dict[str, float]:
-    """
-    Computes evaluation metrics for NER predictions using the seqeval library.
-
-    Args:
-        p (tuple): A tuple containing the model's predictions and the true labels. 
-                   - predictions: A numpy array of shape (batch_size, sequence_length, num_labels) containing the predicted probabilities for each label.
-                   - labels: A numpy array of shape (batch_size, sequence_length) containing the true label indices.
-
-        label_list (list[str]): A list of label names corresponding to the label indices.
-    """
-    
-    predictions, labels = p
-    predictions = np.argmax(predictions, axis=2)
-
-    true_predictions = [
-        [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-        for prediction, label in zip(predictions, labels)
-    ]
-    true_labels = [
-        [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
-        for prediction, label in zip(predictions, labels)
-    ]
-
-    results = seqeval.compute(predictions=true_predictions, references=true_labels)
-    return {
-        "precision": results["overall_precision"],
-        "recall": results["overall_recall"],
-        "f1": results["overall_f1"],
-        "accuracy": results["overall_accuracy"],
-    }

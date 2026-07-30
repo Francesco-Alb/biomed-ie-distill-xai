@@ -6,6 +6,7 @@ tmp_trainer/
 checkpoints/
 results/
 artifacts/
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

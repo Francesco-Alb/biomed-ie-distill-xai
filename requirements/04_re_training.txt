@@ -10,6 +10,7 @@ peft
 datasets
 accelerate
 evaluate
+seqeval
 
 trackio
 wandb
