@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import torch
-from peft import get_peft_model, PeftModel
-from sklearn.utils.class_weight import compute_class_weight
+from peft import get_peft_model
 from torch import nn
 from transformers import (
     AutoModelForSequenceClassification,
@@ -21,48 +20,50 @@ from transformers import (
 
 class WeightedLossTrainer(Trainer):
     """
-    Custom Trainer that safely applies class weights to the loss function 
-    across any single or multi-GPU environment.
+    Custom Trainer that applies pre-computed class weights.
     """
-    def __init__(self, class_weights, *args, **kwargs):
+    def __init__(self, class_weights=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Keep weights as a basic tensor in memory during initialization
-        self.class_weights = torch.tensor(class_weights, dtype=torch.float)
+        if class_weights is not None:
+            self.class_weights = torch.tensor(class_weights, dtype=torch.float32)
+        else:
+            self.class_weights = None
+        self._loss_fct = None
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         labels = inputs.get("labels")
-        
-        # Pass inputs to the model to get the forward pass logits
         outputs = model(**inputs)
         logits = outputs.get("logits")
         
-        # Dynamically map the class weights to whichever device the active batch is on
-        device = labels.device
-        weights = self.class_weights.to(device)
+        # Lazy initialization of loss function on the correct device
+        if self._loss_fct is None:
+            if self.class_weights is not None:
+                weights = self.class_weights.to(logits.device)
+                self._loss_fct = nn.CrossEntropyLoss(weight=weights)
+            else:
+                self._loss_fct = nn.CrossEntropyLoss()
         
-        # Calculate cross-entropy with the weights mapping
-        loss_fct = nn.CrossEntropyLoss(weight=weights)
-        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+        loss = self._loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
         
         return (loss, outputs) if return_outputs else loss
     
 
-def _visualize_smoothing_effect(balanced_weights: np.ndarray, smoothed_weights: np.ndarray):
+def _visualize_smoothing_effect(weights: np.ndarray, smoothed_weights: np.ndarray):
     """
     Visualizes the effect of weight smoothing using log1p transformation.
-    Used in: check_weight_strategy() when visualize=True.
+    Used in: define_weight_strategy() when visualize=True.
     
     Args:
-        balanced_weights (np.ndarray): Balanced class weights from sklearn.
+        weights (np.ndarray): Raw class weights.
         smoothed_weights (np.ndarray): Smoothed class weights after transformation.
     """
     
     # Weights check (before vs after smoothing)
-    print(f"Unsmoothed class weights range: {balanced_weights.min():.2f} → {balanced_weights.max():.2f}")
+    print(f"Unsmoothed class weights range: {weights.min():.2f} → {weights.max():.2f}")
     print(f"Smoothed class weights range: {smoothed_weights.min():.2f} → {smoothed_weights.max():.2f}")
     
     plt.figure(figsize=(12, 6))
-    plt.plot(sorted(balanced_weights), label='Original')
+    plt.plot(sorted(weights), label='Original')
     plt.plot(sorted(smoothed_weights), label='Smoothed')
     plt.legend()
     plt.title("Class Weight Smoothing Effect")
@@ -70,12 +71,13 @@ def _visualize_smoothing_effect(balanced_weights: np.ndarray, smoothed_weights: 
     plt.ylabel("Weight")
     plt.show()
     
-def check_weight_strategy(
-    labels: list = [], 
-    smoothing_factor: float = 1.0,
+def define_weight_strategy(
+    labels: list, 
     threshold: float = 10.0,
-    visualize: bool = False
+    visualize: bool = False,
+    power: float = 0.5  # Square Root Smoothing (best for Transformers)
 ):
+
     """
     Analyzes class distribution and recommends a weighting strategy.
     
@@ -84,31 +86,16 @@ def check_weight_strategy(
         labels (list): Training targets/labels.
         threshold (float): Imbalance ratio cutoff (default is 10:1).
         visualize (bool): Whether to visualize the smoothing effect (default is False).
-        smoothing_factor (float): Controls the degree of smoothing (default is 1.0).
+        power (float): Square Root Smoothing (best for Transformers)
+
 
     Returns
     -------
-        str: Weight strategy recommendation ('balanced', 'smoothed', or 'none').
-
-    Examples:
-    ----------
-        labels = hf_dataset['train']['label']
-        check_weight_strategy(labels, visualize=True)
-
-        # Example 1: Severe imbalance
-        print("Test Case A:")
-        check_weight_strategy([0]*1000 + [1]*5, visualize=True) 
-
-        # Example 2: Mild imbalance
-        print("Test Case B:")
-        check_weight_strategy([0]*100 + [1]*30)
+        str: Weight strategy recommendation ('smoothed', or 'none').
     """
     classes, counts = np.unique(labels, return_counts=True)
-    
     max_count = np.max(counts)
     min_count = np.min(counts)
-    
-    # Calculate how many times more frequent the majority class is
     imbalance_ratio = max_count / min_count
     
     print("--- IMBALANCE ANALYSIS ---")
@@ -116,42 +103,22 @@ def check_weight_strategy(
     print(f"Minority class count: {min_count}")
     print(f"Imbalance ratio:      {imbalance_ratio:.2f}:1\n")
     
-    # Compute balanced weights for visualization/reference
-    balanced_weights = compute_class_weight(
-        class_weight="balanced",
-        classes=classes,
-        y=labels
-    )
-
-    # Normalize weights to have mean=1 before smoothing
-    normalized_weights = balanced_weights / balanced_weights.mean()
-    
-    # Apply log1p transformation to compress extreme values
-    smoothed_weights = np.log1p(normalized_weights * smoothing_factor) + 1.0
-    
     print("--- RECOMMENDATION ---")
     if imbalance_ratio >= threshold:
-        print("Use SMOOTHED weights.")
+        # Compute smooth weights via power scaling (sqrt)
+        weights = (max_count / counts) ** power
+        # Normalize so mean weight == 1.0
+        smoothed_weights = weights / np.mean(weights)
+        
+        print("Use SMOOTHED (Square-Root) weights.")
         print(f"Reason: Imbalance exceeds {threshold}:1.")
-        print("Raw weights will destabilize BERT gradients.")
+        print(f"Weight vector: {np.round(smoothed_weights, 3)}")
         if visualize:
-            _visualize_smoothing_effect(balanced_weights, smoothed_weights)
+            _visualize_smoothing_effect(weights, smoothed_weights)
         return "smoothed", smoothed_weights
-    elif imbalance_ratio > 1.05:  # >5% variance
-        print("Use NORMAL (balanced) weights.")
-        print(f"Reason: Imbalance is mild (under {threshold}:1).")
-        print("Model will safely handle raw scaling.")
-        if visualize:
-            balanced_weights = compute_class_weight(
-                class_weight="balanced",
-                classes=classes,
-                y=labels
-            )
-            _visualize_smoothing_effect(balanced_weights, smoothed_weights)
-        return "balanced", balanced_weights
     else:
         print("Use NO weights (Uniform).")
-        print("Reason: Dataset is perfectly balanced.")
+        print(f"Reason: Imbalance is mild ({imbalance_ratio:.2f}:1 < {threshold}:1).")
         return "none", None
 
 
@@ -294,118 +261,3 @@ def train_single_seed(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
-
-
-def aggregate_seed_results(
-    seed_list: Sequence[int],
-    baseline_training_args: Any,
-    eval_metric: str = "eval_f1",
-    plot: bool = False,
-    save_plot_path: Path | str | None = None,
-    *,
-    verbose: bool = True,
-) -> dict[str, Any]:
-    """Collect metrics from trainer_state files of completed seeds.
-    
-    Args:
-        seed_list: List of random seeds evaluated.
-        baseline_training_args: Base TrainingArguments used for the experiment.
-        eval_metric: Metric key to aggregate (default: 'eval_f1').
-        plot: If True, renders a boxplot with individual seed data points.
-        verbose: If True, prints formatted summary.
-        
-    Returns:
-        dict containing 'completed_runs', 'mean_score', 'std_score', and 'best_run'.
-    """
-    completed_runs = []
-
-    for seed in seed_list:
-        seed_args = make_training_args(baseline_training_args, seed)
-        output_dir = Path(seed_args.output_dir)
-        state_file = _get_trainer_state_file(output_dir)
-
-        if state_file is not None:
-            with open(state_file, "r") as f:
-                state_data = json.load(f)
-            metric_score, best_ckpt = _extract_metric_and_checkpoint(state_data, eval_metric, output_dir)
-            if metric_score is not None:
-                completed_runs.append({
-                    "seed": seed,
-                    eval_metric: metric_score,
-                    "best_checkpoint": best_ckpt,
-                })
-
-    if not completed_runs:
-        if verbose:
-            print("⚠️ No completed runs found.")
-        return {
-            "completed_runs": [],
-            "mean_score": None,
-            "std_score": None,
-            "best_run": None,
-        }
-
-    scores = [run[eval_metric] for run in completed_runs]
-    mean_score = float(np.mean(scores))
-    std_score = float(np.std(scores))
-    best_run = max(completed_runs, key=lambda x: x[eval_metric])
-
-    if verbose:
-        print(f"\n📊 Results across {len(completed_runs)}/{len(seed_list)} completed seeds:")
-        print(f"   {eval_metric}: {mean_score:.4f} ± {std_score:.4f}")
-        print(
-            f"   Best Seed: {best_run['seed']} ({eval_metric}: {best_run[eval_metric]:.4f} @ {best_run['best_checkpoint']})"
-        )
-
-    if plot and completed_runs:
-        _plot_seed_distribution(scores, completed_runs, eval_metric, mean_score, std_score, save_plot_path)
-
-    return {
-        "completed_runs": completed_runs,
-        "mean_score": mean_score,
-        "std_score": std_score,
-        "best_run": best_run,
-    }
-
-
-def _plot_seed_distribution(
-    scores: list[float],
-    completed_runs: list[dict[str, Any]],
-    eval_metric: str,
-    mean_score: float,
-    std_score: float,
-    save_plot_path: Path | str | None = None,
-):
-    """Helper function to plot score distribution across seeds."""
-    fig, ax = plt.subplots(figsize=(7, 4))
-    
-    # Horizontal boxplot
-    sns.boxplot(x=scores, ax=ax, color="lightblue", width=0.3, boxprops=dict(alpha=0.7))
-    
-    # Overlaid individual seed points (strip plot)
-    seeds = [str(run["seed"]) for run in completed_runs]
-    sns.stripplot(x=scores, ax=ax, color="darkblue", size=8, jitter=0.05)
-    
-    # Annotate seed numbers next to points
-    for run in completed_runs:
-        ax.annotate(
-            f" seed {run['seed']}", 
-            (run[eval_metric], 0.05), 
-            fontsize=9, 
-            va="center"
-        )
-
-    ax.axvline(mean_score, color="red", linestyle="--", label=f"Mean: {mean_score:.4f} (±{std_score:.4f})")
-    
-    ax.set_title(f"Multi-Seed Performance Distribution ({eval_metric})")
-    ax.set_xlabel(eval_metric)
-    ax.legend(loc="best")
-    plt.tight_layout()
-    
-    if save_plot_path:
-        save_plot_path = Path(save_plot_path)
-        save_plot_path = save_plot_path.with_suffix(".png")
-        save_plot_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_plot_path, dpi=300, bbox_inches="tight")
-    
-    plt.show()

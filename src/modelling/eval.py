@@ -1,5 +1,25 @@
-import evaluate
+import json
+from pathlib import Path
+from typing import Any, Callable, Optional, Sequence
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
+from scipy.special import softmax
+import torch
+from peft import PeftModel
+import evaluate
+from transformers import (
+    AutoModelForSequenceClassification,
+    Trainer,
+    TrainingArguments,
+)
+
+from src.modelling.training import (
+    make_training_args,
+    _get_trainer_state_file,
+    _extract_metric_and_checkpoint,
+    )
 
 seqeval = evaluate.load("seqeval")
 
@@ -70,3 +90,184 @@ def compute_metrics_re(
         "precision": precision_metric.compute(predictions=predictions, references=labels, average=average)["precision"],
         "f1": f1_metric.compute(predictions=predictions, references=labels, average=average)["f1"]
     }
+
+
+def aggregate_seed_results(
+    seed_list: Sequence[int],
+    baseline_training_args: Any,
+    eval_metric: str = "eval_f1",
+    plot: bool = False,
+    save_plot_path: Path | str | None = None,
+    *,
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """Collect metrics from trainer_state files of completed seeds.
+    
+    Args:
+        seed_list: List of random seeds evaluated.
+        baseline_training_args: Base TrainingArguments used for the experiment.
+        eval_metric: Metric key to aggregate (default: 'eval_f1').
+        plot: If True, renders a boxplot with individual seed data points.
+        verbose: If True, prints formatted summary.
+        
+    Returns:
+        dict containing 'completed_runs', 'mean_score', 'std_score', and 'best_run'.
+    """
+    completed_runs = []
+
+    for seed in seed_list:
+        seed_args = make_training_args(baseline_training_args, seed)
+        output_dir = Path(seed_args.output_dir)
+        state_file = _get_trainer_state_file(output_dir)
+
+        if state_file is not None:
+            with open(state_file, "r") as f:
+                state_data = json.load(f)
+            metric_score, best_ckpt = _extract_metric_and_checkpoint(state_data, eval_metric, output_dir)
+            if metric_score is not None:
+                completed_runs.append({
+                    "seed": seed,
+                    eval_metric: metric_score,
+                    "best_checkpoint": best_ckpt,
+                })
+
+    if not completed_runs:
+        if verbose:
+            print("⚠️ No completed runs found.")
+        return {
+            "completed_runs": [],
+            "mean_score": None,
+            "std_score": None,
+            "best_run": None,
+        }
+
+    scores = [run[eval_metric] for run in completed_runs]
+    mean_score = float(np.mean(scores))
+    std_score = float(np.std(scores))
+    best_run = max(completed_runs, key=lambda x: x[eval_metric])
+
+    if verbose:
+        print(f"\n📊 Results across {len(completed_runs)}/{len(seed_list)} completed seeds:")
+        print(f"   {eval_metric}: {mean_score:.4f} ± {std_score:.4f}")
+        print(
+            f"   Best Seed: {best_run['seed']} ({eval_metric}: {best_run[eval_metric]:.4f} @ {best_run['best_checkpoint']})"
+        )
+
+    if plot and completed_runs:
+        _plot_seed_distribution(scores, completed_runs, eval_metric, mean_score, std_score, save_plot_path)
+
+    return {
+        "completed_runs": completed_runs,
+        "mean_score": mean_score,
+        "std_score": std_score,
+        "best_run": best_run,
+    }
+
+
+def _plot_seed_distribution(
+    scores: list[float],
+    completed_runs: list[dict[str, Any]],
+    eval_metric: str,
+    mean_score: float,
+    std_score: float,
+    save_plot_path: Path | str | None = None,
+):
+    """Helper function to plot score distribution across seeds."""
+    fig, ax = plt.subplots(figsize=(7, 4))
+    
+    # Horizontal boxplot
+    sns.boxplot(x=scores, ax=ax, color="lightblue", width=0.3, boxprops=dict(alpha=0.7))
+    
+    # Overlaid individual seed points (strip plot)
+    seeds = [str(run["seed"]) for run in completed_runs]
+    sns.stripplot(x=scores, ax=ax, color="darkblue", size=8, jitter=0.05)
+    
+    # Annotate seed numbers next to points
+    for run in completed_runs:
+        ax.annotate(
+            f" seed {run['seed']}", 
+            (run[eval_metric], 0.05), 
+            fontsize=9, 
+            va="center"
+        )
+
+    ax.axvline(mean_score, color="red", linestyle="--", label=f"Mean: {mean_score:.4f} (±{std_score:.4f})")
+    
+    ax.set_title(f"Multi-Seed Performance Distribution ({eval_metric})")
+    ax.set_xlabel(eval_metric)
+    ax.legend(loc="best")
+    plt.tight_layout()
+    
+    if save_plot_path:
+        save_plot_path = Path(save_plot_path)
+        save_plot_path = save_plot_path.with_suffix(".png")
+        save_plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_plot_path, dpi=300, bbox_inches="tight")
+    
+    plt.show()
+
+
+def load_best_trainer(
+    best_run: dict,
+    model_checkpoint: str,
+    model_config: Any,
+    compute_metrics_fn: Callable[..., Any],
+    args: TrainingArguments,
+) -> Trainer:
+    """
+    Reconstructs a Trainer from a best_run dict to perform post-training tasks.
+    """
+    from peft import PeftModel
+    
+    # Load base model
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_checkpoint, config=model_config
+    )
+    
+    # Load best checkpoint as PEFT model
+    checkpoint_path = best_run["best_checkpoint"]
+    model = PeftModel.from_pretrained(model, checkpoint_path)
+
+    # Disable evaluation during training for the reloaded trainer
+    args.eval_strategy = "no"
+    
+    # Re-initialize trainer
+    best_trainer = Trainer(
+        model=model,
+        args=args,
+        compute_metrics=compute_metrics_fn,
+    )
+    
+    return best_trainer
+
+
+def get_validation_probabilities(trainer: Trainer, eval_dataset: Any) -> np.ndarray:
+    """
+    Extracts positive-class probabilities from a Trainer prediction output.
+    """
+    predictions = trainer.predict(eval_dataset)
+    probs = softmax(predictions.predictions, axis=-1)
+    return probs[:, 1]
+
+
+def find_optimal_threshold(val_probs: np.ndarray, val_labels: np.ndarray) -> float:
+    """
+    Finds the probability threshold that maximizes F1-score on validation data.
+    """
+    from sklearn.metrics import f1_score, precision_recall_curve
+
+    precisions, recalls, thresholds = precision_recall_curve(val_labels, val_probs)
+    
+    # Calculate F1 scores across all candidate thresholds
+    # Avoid division by zero
+    f1_scores = (2 * precisions * recalls) / (precisions + recalls + 1e-10)
+    best_idx = np.argmax(f1_scores)
+    
+    # Thresholds array is length N-1, precisions/recalls are length N
+    # The threshold at best_idx corresponds to the transition between best_idx and best_idx+1
+    best_threshold = thresholds[best_idx]
+    
+    print(f"Default (0.50) Threshold F1: {f1_score(val_labels, (val_probs > 0.5).astype(int)):.4f}")
+    print(f"Optimal ({best_threshold:.4f}) Threshold F1: {f1_scores[best_idx]:.4f}")
+    
+    return best_threshold
