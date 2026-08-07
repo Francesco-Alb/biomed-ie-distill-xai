@@ -21,10 +21,10 @@ class DataConfig:
     data_folder: Path = Path("data/documents")
     eval_folder: Path = Path("evals")
     dataset_name: str = "bigbio/bc5cdr"
-    flattened_dataset_name: Path = Path("data/processed/bc5cdr_flattened")
-    relations_dataset_name: Path = Path("data/processed/bc5cdr_relations")
-    structured_file: Path = Path("data/processed/structured_data")
-    structured_checkpoint_file: Path = Path("data/checkpoints/structured_data")
+    flattened_dataset_path: Path = Path("data/processed/bc5cdr_flattened")
+    relations_dataset_path: Path = Path("data/processed/bc5cdr_relations")
+    structured_dataset_path: Path = Path("data/processed/structured_data")
+    structured_checkpoint_file_path: Path = Path("data/checkpoints/structured_data")
 
 
 @dataclass
@@ -32,6 +32,7 @@ class ModelConfig:
     """Model configurations."""
     
     # --- NER ---
+    ner_output_dir: Path = Path("results/ner")
     ner_model_name: str = "BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-LoRA-v1.1"
     ner_model_checkpoint: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract"
     ner_label_names: list[str] = field(default_factory=lambda: [
@@ -47,6 +48,7 @@ class ModelConfig:
     local_tagger_checkpoint_large: str = "Qwen/Qwen2.5-32B-Instruct-GGUF"
 
     # --- RE ---
+    re_output_dir: Path = Path("results/re")
     align_labels: bool = True
     re_model_name: str = "Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.1"
     re_model_checkpoint: str = "yikuan8/Clinical-Longformer"

@@ -102,24 +102,24 @@ def setup_kaggle_environment(
     kaggle_input_base = Path(kaggle_input_dir)
 
     # --- INPUT DATASETS (Read-Only Input Paths) ---
-    config.data.flattened_dataset_name = kaggle_input_base / "bc5cdr_flattened"
-    config.data.relations_dataset_name = kaggle_input_base / "bc5cdr_relations"
+    config.data.flattened_dataset_path = kaggle_input_base / "bc5cdr_flattened"
+    config.data.relations_dataset_path = kaggle_input_base / "bc5cdr_relations"
     
     # --- OUTPUT RUNTIMES (Read-Write Working Paths) ---
     kaggle_working_dir = Path("/kaggle/working")
     
     # Redirect the base directories to your writable working workspace
-    config.data.structured_checkpoint_file = kaggle_working_dir / "checkpoints/structured_data"
-    config.data.structured_file = kaggle_working_dir / "results"
+    config.data.structured_checkpoint_file_path = kaggle_working_dir / "checkpoints/structured_data"
+    config.data.structured_dataset_path = kaggle_working_dir / "results"
     
     # Force create the target directory structures inside /kaggle/working so pandas doesn't throw errors
-    config.data.structured_checkpoint_file.mkdir(parents=True, exist_ok=True)
-    config.data.structured_file.mkdir(parents=True, exist_ok=True)
+    config.data.structured_checkpoint_file_path.mkdir(parents=True, exist_ok=True)
+    config.data.structured_dataset_path.mkdir(parents=True, exist_ok=True)
         
     # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
     uploaded_checkpoint_path = kaggle_input_base / "checkpoints/structured_data" / suffix
     # Path where your pipeline expects to read AND write active checkpoints
-    active_working_checkpoint = config.data.structured_checkpoint_file / suffix
+    active_working_checkpoint = config.data.structured_checkpoint_file_path / suffix
     
     # If a fresh session started but you uploaded an existing checkpoint to Kaggle, copy it over to the writable space
     active_checkpoint_is_valid = (

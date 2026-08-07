@@ -220,7 +220,7 @@ def get_response(
     model_checkpoint: str,
     model_source: str = "api",
     df_exploded_reference: pd.DataFrame | None = None, # Required ONLY if is_macro=True
-    structured_checkpoint_file: Path | None = None,
+    structured_checkpoint_file_path: Path | None = None,
     is_macro: bool = True,
     quantize_model: bool = False,
     tensor_parallel_size: int = 2,
@@ -285,9 +285,9 @@ def get_response(
     processed_ids = set()
     current_processed_data = pd.DataFrame()
 
-    if structured_checkpoint_file is not None and os.path.exists(structured_checkpoint_file):
-        print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file}")
-        current_processed_data = pd.read_parquet(structured_checkpoint_file)
+    if structured_checkpoint_file_path is not None and os.path.exists(structured_checkpoint_file_path):
+        print(f"🔄 Resuming from checkpoint: {structured_checkpoint_file_path}")
+        current_processed_data = pd.read_parquet(structured_checkpoint_file_path)
         
         if drop_invalid_from_checkpoint:
             if "extraction_status" in current_processed_data.columns:
@@ -503,10 +503,10 @@ def get_response(
                 else:
                     current_processed_data = batch_res_df
 
-                if structured_checkpoint_file is not None:
-                    current_processed_data.to_parquet(structured_checkpoint_file, index=False)
+                if structured_checkpoint_file_path is not None:
+                    current_processed_data.to_parquet(structured_checkpoint_file_path, index=False)
                     last_processed = batch_df.iloc[-1][id_col]
-                    print(f"💾 Checkpoint saved at {structured_checkpoint_file} with {len(current_processed_data)} rows.")
+                    print(f"💾 Checkpoint saved at {structured_checkpoint_file_path} with {len(current_processed_data)} rows.")
                     print(f"Last item processed: {last_processed}")
             else:
                 print(f"No results generated for batch starting at index {i}.")

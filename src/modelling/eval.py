@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
@@ -16,10 +17,9 @@ from transformers import (
 )
 
 from src.modelling.training import (
-    make_training_args,
     _get_trainer_state_file,
     _extract_metric_and_checkpoint,
-    )
+)
 
 seqeval = evaluate.load("seqeval")
 
@@ -93,43 +93,65 @@ def compute_metrics_re(
 
 
 def aggregate_seed_results(
-    seed_list: Sequence[int],
-    baseline_training_args: Any,
+    re_output_dir: Path | str,
     eval_metric: str = "eval_f1",
     plot: bool = False,
     save_plot_path: Path | str | None = None,
+    sort_by_seed: bool = True,
     *,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Collect metrics from trainer_state files of completed seeds.
-    
+    """Collect metrics from completed relation extraction runs inside `re_output_dir`.
+
     Args:
-        seed_list: List of random seeds evaluated.
-        baseline_training_args: Base TrainingArguments used for the experiment.
+        re_output_dir: Directory containing seed-specific model output folders.
         eval_metric: Metric key to aggregate (default: 'eval_f1').
         plot: If True, renders a boxplot with individual seed data points.
+        save_plot_path: Optional path to save the generated plot.
+        sort_by_seed: If True, sort runs by parsed seed value before aggregation.
         verbose: If True, prints formatted summary.
-        
+
     Returns:
         dict containing 'completed_runs', 'mean_score', 'std_score', and 'best_run'.
     """
+    output_dir = Path(re_output_dir)
+    if not output_dir.exists() or not output_dir.is_dir():
+        raise ValueError(f"re_output_dir does not exist or is not a directory: {output_dir}")
+
     completed_runs = []
+    run_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
 
-    for seed in seed_list:
-        seed_args = make_training_args(baseline_training_args, seed)
-        output_dir = Path(seed_args.output_dir)
-        state_file = _get_trainer_state_file(output_dir)
+    # TODO: probably unnecessary, drop it
+    if sort_by_seed:
+        run_dirs = sorted(
+            run_dirs,
+            key=lambda d: (_parse_seed_from_dir_name(d.name) if _parse_seed_from_dir_name(d.name) is not None else float("inf"), d.name)
+        )
 
-        if state_file is not None:
-            with open(state_file, "r") as f:
-                state_data = json.load(f)
-            metric_score, best_ckpt = _extract_metric_and_checkpoint(state_data, eval_metric, output_dir)
-            if metric_score is not None:
-                completed_runs.append({
-                    "seed": seed,
-                    eval_metric: metric_score,
-                    "best_checkpoint": best_ckpt,
-                })
+    for run_dir in run_dirs:
+        seed = _parse_seed_from_dir_name(run_dir.name)
+        state_file = _get_trainer_state_file(run_dir)
+
+        if state_file is None:
+            if verbose:
+                print(f"⚠️ Skipping {run_dir.name}: no trainer_state.json found.")
+            continue
+
+        with open(state_file, "r") as f:
+            state_data = json.load(f)
+
+        metric_score, best_ckpt = _extract_metric_and_checkpoint(state_data, eval_metric, run_dir)
+        if metric_score is None:
+            if verbose:
+                print(f"⚠️ Skipping {run_dir.name}: metric '{eval_metric}' not found.")
+            continue
+
+        completed_runs.append({
+            "seed": seed,
+            "run_dir": str(run_dir),
+            eval_metric: metric_score,
+            "best_checkpoint": best_ckpt,
+        })
 
     if not completed_runs:
         if verbose:
@@ -141,13 +163,19 @@ def aggregate_seed_results(
             "best_run": None,
         }
 
+    if sort_by_seed:
+        completed_runs = sorted(
+            completed_runs,
+            key=lambda x: (x["seed"] if x["seed"] is not None else float("inf"), x["run_dir"])
+        )
+
     scores = [run[eval_metric] for run in completed_runs]
     mean_score = float(np.mean(scores))
     std_score = float(np.std(scores))
     best_run = max(completed_runs, key=lambda x: x[eval_metric])
 
     if verbose:
-        print(f"\n📊 Results across {len(completed_runs)}/{len(seed_list)} completed seeds:")
+        print(f"\n📊 Results across {len(completed_runs)} completed runs:")
         print(f"   {eval_metric}: {mean_score:.4f} ± {std_score:.4f}")
         print(
             f"   Best Seed: {best_run['seed']} ({eval_metric}: {best_run[eval_metric]:.4f} @ {best_run['best_checkpoint']})"
@@ -162,6 +190,12 @@ def aggregate_seed_results(
         "std_score": std_score,
         "best_run": best_run,
     }
+
+
+def _parse_seed_from_dir_name(dir_name: str) -> Optional[int]:
+    """Extract seed integer from a directory name like '...-seed1' or '...-seed42'."""
+    match = re.search(r"(?:^|[-_])seed(\d+)(?:$|[-_])", dir_name, re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def _plot_seed_distribution(
@@ -212,12 +246,12 @@ def load_best_trainer(
     model_checkpoint: str,
     model_config: Any,
     compute_metrics_fn: Callable[..., Any],
-    args: TrainingArguments,
+    args: Optional[TrainingArguments] = None,
+    data_collator: Any = None,
 ) -> Trainer:
     """
     Reconstructs a Trainer from a best_run dict to perform post-training tasks.
     """
-    from peft import PeftModel
     
     # Load base model
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -227,15 +261,13 @@ def load_best_trainer(
     # Load best checkpoint as PEFT model
     checkpoint_path = best_run["best_checkpoint"]
     model = PeftModel.from_pretrained(model, checkpoint_path)
-
-    # Disable evaluation during training for the reloaded trainer
-    args.eval_strategy = "no"
     
     # Re-initialize trainer
     best_trainer = Trainer(
         model=model,
         args=args,
         compute_metrics=compute_metrics_fn,
+        data_collator=data_collator
     )
     
     return best_trainer
