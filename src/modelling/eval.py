@@ -1,4 +1,5 @@
 import json
+from logging import config
 import re
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
@@ -11,7 +12,10 @@ import torch
 from peft import PeftModel
 import evaluate
 from transformers import (
+    AutoConfig,
     AutoModelForSequenceClassification,
+    AutoTokenizer,
+    DataCollatorWithPadding,
     Trainer,
     TrainingArguments,
 )
@@ -93,40 +97,31 @@ def compute_metrics_re(
 
 
 def aggregate_seed_results(
-    re_output_dir: Path | str,
+    output_dir: Path | str,
     eval_metric: str = "eval_f1",
     plot: bool = False,
     save_plot_path: Path | str | None = None,
-    sort_by_seed: bool = True,
     *,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Collect metrics from completed relation extraction runs inside `re_output_dir`.
+    """Collect metrics from completed relation extraction runs inside `output_dir`.
 
     Args:
-        re_output_dir: Directory containing seed-specific model output folders.
+        output_dir: Directory containing seed-specific model output folders.
         eval_metric: Metric key to aggregate (default: 'eval_f1').
         plot: If True, renders a boxplot with individual seed data points.
         save_plot_path: Optional path to save the generated plot.
-        sort_by_seed: If True, sort runs by parsed seed value before aggregation.
         verbose: If True, prints formatted summary.
 
     Returns:
         dict containing 'completed_runs', 'mean_score', 'std_score', and 'best_run'.
     """
-    output_dir = Path(re_output_dir)
+    output_dir = Path(output_dir)
     if not output_dir.exists() or not output_dir.is_dir():
-        raise ValueError(f"re_output_dir does not exist or is not a directory: {output_dir}")
+        raise ValueError(f"output_dir does not exist or is not a directory: {output_dir}")
 
     completed_runs = []
     run_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
-
-    # TODO: probably unnecessary, drop it
-    if sort_by_seed:
-        run_dirs = sorted(
-            run_dirs,
-            key=lambda d: (_parse_seed_from_dir_name(d.name) if _parse_seed_from_dir_name(d.name) is not None else float("inf"), d.name)
-        )
 
     for run_dir in run_dirs:
         seed = _parse_seed_from_dir_name(run_dir.name)
@@ -243,20 +238,29 @@ def _plot_seed_distribution(
 
 def load_best_trainer(
     best_run: dict,
-    model_checkpoint: str,
-    model_config: Any,
+    model_configs: Any,
     compute_metrics_fn: Callable[..., Any],
     args: Optional[TrainingArguments] = None,
-    data_collator: Any = None,
 ) -> Trainer:
     """
     Reconstructs a Trainer from a best_run dict to perform post-training tasks.
     """
+
+    auto_config = AutoConfig.from_pretrained(
+        model_configs.re_model_checkpoint,
+        num_labels=len(model_configs.re_label_names_binary),
+        id2label={i: label for i, label in enumerate(model_configs.re_label_names_binary)},
+        label2id={label: i for i, label in enumerate(model_configs.re_label_names_binary)}
+    )
     
     # Load base model
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_checkpoint, config=model_config
+        model_configs.re_model_checkpoint, config=auto_config
     )
+
+    #  Load tokenizer and datacollator
+    tokenizer = AutoTokenizer.from_pretrained(model_configs.re_model_checkpoint)
+    data_collator = DataCollatorWithPadding(tokenizer)
     
     # Load best checkpoint as PEFT model
     checkpoint_path = best_run["best_checkpoint"]
@@ -266,8 +270,9 @@ def load_best_trainer(
     best_trainer = Trainer(
         model=model,
         args=args,
+        processing_class=tokenizer,
+        data_collator=data_collator,
         compute_metrics=compute_metrics_fn,
-        data_collator=data_collator
     )
     
     return best_trainer
@@ -302,4 +307,34 @@ def find_optimal_threshold(val_probs: np.ndarray, val_labels: np.ndarray) -> flo
     print(f"Default (0.50) Threshold F1: {f1_score(val_labels, (val_probs > 0.5).astype(int)):.4f}")
     print(f"Optimal ({best_threshold:.4f}) Threshold F1: {f1_scores[best_idx]:.4f}")
     
-    return best_threshold
+    return float(best_threshold)
+
+
+def compute_metrics_at_threshold(
+    probabilities: np.ndarray,
+    labels: np.ndarray,
+    threshold: float,
+    average: str = "binary"
+) -> dict[str, float]:
+    """
+    Computes evaluation metrics at a specific classification threshold.
+    
+    Args:
+        probabilities: Array of positive-class probabilities (shape: (n_samples,)).
+        labels: Array of true binary labels (shape: (n_samples,)).
+        threshold: Classification threshold to apply.
+        average: Averaging method for metrics ('binary', 'micro', 'macro', 'weighted').
+    
+    Returns:
+        dict containing 'accuracy', 'precision', 'recall', and 'f1' scores.
+    """
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    
+    predictions = (probabilities > threshold).astype(int)
+    
+    return {
+        "accuracy": accuracy_score(labels, predictions),
+        "precision": precision_score(labels, predictions, average=average, zero_division=0),
+        "recall": recall_score(labels, predictions, average=average, zero_division=0),
+        "f1": f1_score(labels, predictions, average=average, zero_division=0)
+    }

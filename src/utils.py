@@ -4,21 +4,16 @@ import shutil
 import importlib
 import random
 from pathlib import Path
-from typing import Any, Sequence, Union, Optional
+from typing import Any, Union, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
 from datasets import Dataset
-from peft import PeftModel
-from transformers import (
-    AutoModelForSequenceClassification,
-    Trainer,
-    TrainingArguments,
-    PreTrainedTokenizerBase,
-)
+from transformers import Trainer
 from transformers.trainer_callback import TrainerState
+from huggingface_hub import create_repo
 
 from src.modelling.training import make_training_args
 
@@ -142,9 +137,9 @@ def setup_kaggle_environment(
 
 
 def plot_length_distribution_with_percentiles(
-        lengths: list[int], 
-        model_max_length: int|None=None, 
-        bins: int=60): 
+    lengths: list[int], 
+    model_max_length: int|None=None, 
+    bins: int=60): 
     """
     Plot a histogram of token lengths with annotated percentile lines and an optional
     model context window marker. This visualization clarifies the distribution of 
@@ -192,11 +187,12 @@ def plot_length_distribution_with_percentiles(
         print(f"There's {exceeding} sample(s) exceeding model_max_length")
 
 
+# TODO: add n_gpu
 def estimate_optimization_steps(
-        dataset: Dataset,
-        batch_size: int = 2,
-        gradient_accumulation_steps: int = 1
-        ) -> None:
+    dataset: Dataset,
+    batch_size: int = 2,
+    gradient_accumulation_steps: int = 1
+    ) -> None:
     """
     Estimates the number of optimization steps per epoch based on dataset size,
     per-step batch size, and optional gradient accumulation.
@@ -229,47 +225,25 @@ def estimate_optimization_steps(
 
 def push_best_run_to_hub(
     best_run: dict[str, Any],
-    model_checkpoint: str,
-    model_config: Any,
-    hub_model_id: str,
-    baseline_training_args: TrainingArguments,
-    tokenizer: Optional[PreTrainedTokenizerBase] = None,
-    private: bool = True,
+    best_trainer: Trainer,
+    optimal_threshold: Optional[float] = None,
     commit_message: str = "Upload best seed model and training artifacts via Trainer",
 ) -> None:
-    """Reconstructs Trainer from the best checkpoint and calls trainer.push_to_hub()."""
-    best_checkpoint = best_run.get("best_checkpoint")
+    """
+    Pushes the best run's artifacts to the Hugging Face Hub.
+    
+    Args:
+        best_run: Dictionary containing best run information including checkpoint path.
+        best_trainer: The trained Trainer instance.
+        optimal_threshold: Optional optimal classification threshold from post-hoc analysis (tuned on validation set).
+        commit_message: Commit message for Hub push.
+    """
+
+    best_checkpoint = Path(best_run.get("best_checkpoint"))
     if not best_checkpoint:
         raise ValueError("Best run does not contain a valid checkpoint path.")
 
     print(f"Rebuilding Trainer for best checkpoint: {best_checkpoint}")
-
-    # ----------------------------------------------------------------- Load base model + best adapter weights
-    base_model = AutoModelForSequenceClassification.from_pretrained(
-        model_checkpoint,
-        config=model_config,
-        device_map="auto",
-        torch_dtype="auto",
-    )
-    best_model = PeftModel.from_pretrained(
-        model=base_model,
-        model_id=best_checkpoint,
-    )
-
-    # ----------------------------------------------------------------- Prepare TrainingArguments targeting the checkpoint output directory
-    push_args = make_training_args(baseline_training_args, best_run["seed"])
-    push_args.output_dir = str(best_checkpoint)
-    push_args.push_to_hub = True
-    push_args.hub_model_id = hub_model_id
-    push_args.hub_private_repo = private
-    push_args.eval_strategy = "no"
-
-    # ----------------------------------------------------------------- Instantiate Trainer targeting the best checkpoint
-    trainer = Trainer(
-        model=best_model,
-        args=push_args,
-        processing_class=tokenizer,
-    )
 
     # ----------------------------------------------------------------- Load and attach saved trainer state so trainer.state has full log_history
     root_state = Path(best_checkpoint.parent / "trainer_state.json")
@@ -278,18 +252,24 @@ def push_best_run_to_hub(
     # Prefer complete run history (root output dir), fall back to step snapshot (checkpoint dir)
     state_file = root_state if root_state.exists() else (ckpt_state if ckpt_state.exists() else None)
     if state_file:
-        trainer.state = TrainerState.load_from_json(state_file)
-        print(f"📈 Loaded training logs from: {state_file}")
+        best_trainer.state = TrainerState.load_from_json(state_file)
+        print(f"Loaded training logs from: {state_file}")
+
+    # ----------------------------------------------------------------- Attach optimal threshold to model config
+    if optimal_threshold is not None:
+        best_trainer.model.config.optimal_threshold = optimal_threshold
+        print(f"ℹ️ Added optimal_threshold (tuned on validation): {optimal_threshold:.4f}")
 
     # ----------------------------------------------------------------- Push all artifacts (model, tokenizer, training_args.bin, generated README.md)
-    print(f"Pushing model artifacts to Hugging Face Hub: {hub_model_id}")
-    trainer.push_to_hub(commit_message=commit_message)
+    print(f"Pushing model artifacts to Hugging Face Hub: {best_trainer.args.hub_model_id}")
+    create_repo(best_trainer.args.hub_model_id, exist_ok=True, private=best_trainer.args.hub_private_repo)
+    best_trainer.push_to_hub(commit_message=commit_message)
     
-    # Push model config (ensures label mappings like id2label/label2id are preserved)
-    best_model.config.push_to_hub(
-        repo_id=hub_model_id,
-        commit_message="Pushing configs (with label mappings)",
-        private=private,
+    # Push model config (preserves label mappings and threshold)
+    best_trainer.model.config.push_to_hub(
+        repo_id=best_trainer.args.hub_model_id,
+        commit_message="Pushing configs",
+        private=best_trainer.args.hub_private_repo,
     )
 
     print("✅ Model, tokenizer, training args, and Model Card successfully pushed!")
