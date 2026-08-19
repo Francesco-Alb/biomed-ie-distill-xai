@@ -112,6 +112,7 @@ def setup_kaggle_environment(
 
     # --- STRUCTURED LLM EXTRACTION ---
 
+    # TODO: consider removing config.data.structured_dataset_path, it might be dead code
     if training_model_type is None:
         # Structured data extraction logic (original behavior)
         config.data.structured_checkpoint_file_path = kaggle_working_dir / "checkpoints" / "structured_data"
@@ -143,10 +144,10 @@ def setup_kaggle_environment(
         else:
             print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
 
-    # --- TRAINING CHECKPOINTS (NER, RE, etc.) ---
+    # --- TRAINING RESULTS (NER, RE, etc.) ---
     
     else:
-        # Training-specific logic for Trainer checkpoints (NER, RE, etc.)
+        # Training-specific logic for Trainer results (NER, RE, etc.)
         training_results_dir = kaggle_working_dir / "results" / training_model_type
         training_results_dir.mkdir(parents=True, exist_ok=True)
         
@@ -161,14 +162,14 @@ def setup_kaggle_environment(
         print(f"✅ Training checkpoint output directory configured: {training_results_dir}")
         
         # Stage all uploaded model-seed directories into the writable output root.
-        uploaded_training_path = kaggle_input_base / "checkpoints" / training_model_type
+        uploaded_training_path = kaggle_input_base / "results" / training_model_type
         if uploaded_training_path.exists():
             print(
-                "🔄 Staging: Merging uploaded training checkpoints into writable workspace:\n"
+                "🔄 Staging: Merging uploaded training results into writable workspace:\n"
                 f"   ↳ {training_results_dir}"
             )
             shutil.copytree(uploaded_training_path, training_results_dir, dirs_exist_ok=True)
-            print("✅ Training checkpoints successfully staged for resumption.")
+            print("✅ Training results successfully staged for resumption.")
         else:
             print(f"🆕 Fresh Run: No pre-uploaded training checkpoints for {training_model_type} found.")
 
