@@ -68,7 +68,8 @@ def setup_kaggle_environment(
     config: Any, 
     suffix: str, 
     kaggle_input_dir: Union[str, Path] = "/kaggle/input/datasets/username/datasetname",
-    is_kaggle: bool = False, 
+    is_kaggle: bool = False,
+    training_model_type: Optional[str] = None,
 ) -> None:
     """
     Configures and stages environment paths when running inside a Kaggle notebook.
@@ -84,6 +85,8 @@ def setup_kaggle_environment(
         suffix (str): The filename or subpath suffix for the active checkpoint.
         kaggle_input_dir (Union[str, Path], optional): The base path for Kaggle input datasets. 
             Defaults to "/kaggle/input/datasets/username/datasetname".
+        training_model_type (str, optional): Model type for training checkpoints (e.g., "ner", "re").
+            If None, uses structured data extraction logic. Defaults to None.
 
     Returns:
         None
@@ -95,45 +98,80 @@ def setup_kaggle_environment(
 
     # Ensure kaggle_input_dir is a Path object
     kaggle_input_base = Path(kaggle_input_dir)
+    kaggle_working_dir = Path("/kaggle/working")
 
     # --- INPUT DATASETS (Read-Only Input Paths) ---
-    config.data.flattened_dataset_path = kaggle_input_base / "bc5cdr_flattened"
-    config.data.relations_dataset_path = kaggle_input_base / "bc5cdr_relations"
-    
-    # --- OUTPUT RUNTIMES (Read-Write Working Paths) ---
-    kaggle_working_dir = Path("/kaggle/working")
-    
-    # Redirect the base directories to your writable working workspace
-    config.data.structured_checkpoint_file_path = kaggle_working_dir / "checkpoints/structured_data"
-    config.data.structured_dataset_path = kaggle_working_dir / "results"
-    
-    # Force create the target directory structures inside /kaggle/working so pandas doesn't throw errors
-    config.data.structured_checkpoint_file_path.mkdir(parents=True, exist_ok=True)
-    config.data.structured_dataset_path.mkdir(parents=True, exist_ok=True)
-        
-    # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
-    uploaded_checkpoint_path = kaggle_input_base / "checkpoints/structured_data" / suffix
-    # Path where your pipeline expects to read AND write active checkpoints
-    active_working_checkpoint = config.data.structured_checkpoint_file_path / suffix
-    
-    # If a fresh session started but you uploaded an existing checkpoint to Kaggle, copy it over to the writable space
-    active_checkpoint_is_valid = (
-        active_working_checkpoint.exists()
-        and any(active_working_checkpoint.iterdir())
-    )
+    for attr in dir(config.data):
+        if not attr.startswith("_") and "dataset_path" in attr:
+            original_path = getattr(config.data, attr)
+            if original_path is not None:
+                original_path = Path(original_path)
+                new_path = kaggle_input_base / original_path.name
+                setattr(config.data, attr, new_path)
+                print(f"🔄 Overwriting {attr}: {original_path} → {new_path}")
 
-    if not active_checkpoint_is_valid and uploaded_checkpoint_path.exists():
-        print(f"🔄 Staging: Copying read-only input checkpoint to writable workspace:\n   ↳ {active_working_checkpoint}")
-        if uploaded_checkpoint_path.is_dir():
+    # --- STRUCTURED LLM EXTRACTION ---
+
+    if training_model_type is None:
+        # Structured data extraction logic (original behavior)
+        config.data.structured_checkpoint_file_path = kaggle_working_dir / "checkpoints" / "structured_data"
+        config.data.structured_dataset_path = kaggle_working_dir / "results"
+        
+        # Force create the target directory structures inside /kaggle/working
+        config.data.structured_checkpoint_file_path.mkdir(parents=True, exist_ok=True)
+        config.data.structured_dataset_path.mkdir(parents=True, exist_ok=True)
+            
+        # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
+        uploaded_checkpoint_path = kaggle_input_base / "checkpoints" / "structured_data" / suffix
+
+        # Path where the pipeline expects to read AND write active checkpoints
+        active_working_checkpoint = config.data.structured_checkpoint_file_path / suffix
+        
+        # If the checkpoint already exists in the current session, keep using it.
+        # Otherwise, stage a persisted checkpoint from Kaggle Input if one exists.
+        active_checkpoint_is_valid = (
+            active_working_checkpoint.exists()
+            and active_working_checkpoint.is_dir()
+            and any(active_working_checkpoint.iterdir())
+        )
+
+        if active_checkpoint_is_valid:
+            print(f"🔄 Active Session: Resuming from active working directory checkpoint.")
+        elif uploaded_checkpoint_path.exists():
+            print(f"🔄 Staging: Copying read-only input checkpoint to writable workspace:\n   ↳ {active_working_checkpoint}")
             shutil.copytree(uploaded_checkpoint_path, active_working_checkpoint, dirs_exist_ok=True)
         else:
-            shutil.copy(uploaded_checkpoint_path, active_working_checkpoint)
-        print("✅ Checkpoint successfully prepared for write operations.")
-    elif active_checkpoint_is_valid:
-        checkpoint_size_kb = active_working_checkpoint.stat().st_size / 1024
-        print(f"🔄 Active Session: Resuming from active working directory checkpoint ({checkpoint_size_kb:.2f} KB)")
+            print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
+
+    # --- TRAINING CHECKPOINTS (NER, RE, etc.) ---
+    
     else:
-        print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
+        # Training-specific logic for Trainer checkpoints (NER, RE, etc.)
+        training_results_dir = kaggle_working_dir / "results" / training_model_type
+        training_results_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Store training output directory in config for Trainer to use
+        output_dir_attr = f"{training_model_type}_output_dir"
+        if not hasattr(config.model, output_dir_attr):
+            raise AttributeError(
+                f"Configuration is missing model.{output_dir_attr} for training_model_type="
+                f"{training_model_type!r}."
+            )
+        setattr(config.model, output_dir_attr, training_results_dir)
+        print(f"✅ Training checkpoint output directory configured: {training_results_dir}")
+        
+        # Stage all uploaded model-seed directories into the writable output root.
+        uploaded_training_path = kaggle_input_base / "checkpoints" / training_model_type
+        if uploaded_training_path.exists():
+            print(
+                "🔄 Staging: Merging uploaded training checkpoints into writable workspace:\n"
+                f"   ↳ {training_results_dir}"
+            )
+            shutil.copytree(uploaded_training_path, training_results_dir, dirs_exist_ok=True)
+            print("✅ Training checkpoints successfully staged for resumption.")
+        else:
+            print(f"🆕 Fresh Run: No pre-uploaded training checkpoints for {training_model_type} found.")
+
 
 
 def plot_length_distribution_with_percentiles(
