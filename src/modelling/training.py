@@ -258,6 +258,7 @@ def train_single_seed(
         del trainer
         del seed_model
 
+    gc.collect()
+
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    gc.collect()

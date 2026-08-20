@@ -100,31 +100,22 @@ def setup_kaggle_environment(
     kaggle_input_base = Path(kaggle_input_dir)
     kaggle_working_dir = Path("/kaggle/working")
 
-    # --- INPUT DATASETS (Read-Only Input Paths) ---
-    for attr in dir(config.data):
-        if not attr.startswith("_") and "dataset_path" in attr:
-            original_path = getattr(config.data, attr)
-            if original_path is not None:
-                original_path = Path(original_path)
-                new_path = kaggle_input_base / original_path.name
-                setattr(config.data, attr, new_path)
-                print(f"🔄 Overwriting {attr}: {original_path} → {new_path}")
 
     # --- STRUCTURED LLM EXTRACTION ---
 
-    # TODO: consider removing config.data.structured_dataset_path, it might be dead code
     if training_model_type is None:
+
+        # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
+        uploaded_checkpoint_path = kaggle_input_base / config.data.structured_checkpoint_file_path / suffix
+
         # Structured data extraction logic (original behavior)
-        config.data.structured_checkpoint_file_path = kaggle_working_dir / "checkpoints" / "structured_data"
-        config.data.structured_dataset_path = kaggle_working_dir / "results"
+        config.data.structured_checkpoint_file_path = kaggle_working_dir / config.data.structured_checkpoint_file_path
+        config.data.structured_dataset_path = kaggle_working_dir / config.data.structured_dataset_path
         
         # Force create the target directory structures inside /kaggle/working
         config.data.structured_checkpoint_file_path.mkdir(parents=True, exist_ok=True)
         config.data.structured_dataset_path.mkdir(parents=True, exist_ok=True)
             
-        # Path where an uploaded checkpoint would live if attached as a Kaggle Input Dataset
-        uploaded_checkpoint_path = kaggle_input_base / "checkpoints" / "structured_data" / suffix
-
         # Path where the pipeline expects to read AND write active checkpoints
         active_working_checkpoint = config.data.structured_checkpoint_file_path / suffix
         
@@ -144,13 +135,10 @@ def setup_kaggle_environment(
         else:
             print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
 
-    # --- TRAINING RESULTS (NER, RE, etc.) ---
-    
-    else:
-        # Training-specific logic for Trainer results (NER, RE, etc.)
-        training_results_dir = kaggle_working_dir / "results" / training_model_type
-        training_results_dir.mkdir(parents=True, exist_ok=True)
-        
+    # --- TRAINING OUTPUTS / CHECKPOINTS (NER, RE, etc.) ---
+
+    else: 
+
         # Store training output directory in config for Trainer to use
         output_dir_attr = f"{training_model_type}_output_dir"
         if not hasattr(config.model, output_dir_attr):
@@ -158,11 +146,17 @@ def setup_kaggle_environment(
                 f"Configuration is missing model.{output_dir_attr} for training_model_type="
                 f"{training_model_type!r}."
             )
+        original_output_dir = Path(getattr(config.model, output_dir_attr))
+
+        uploaded_training_path = kaggle_input_base / original_output_dir
+        training_results_dir = kaggle_working_dir / original_output_dir
+
+        training_results_dir.mkdir(parents=True, exist_ok=True)
+
         setattr(config.model, output_dir_attr, training_results_dir)
         print(f"✅ Training checkpoint output directory configured: {training_results_dir}")
-        
+
         # Stage all uploaded model-seed directories into the writable output root.
-        uploaded_training_path = kaggle_input_base / "results" / training_model_type
         if uploaded_training_path.exists():
             print(
                 "🔄 Staging: Merging uploaded training results into writable workspace:\n"
@@ -171,7 +165,7 @@ def setup_kaggle_environment(
             shutil.copytree(uploaded_training_path, training_results_dir, dirs_exist_ok=True)
             print("✅ Training results successfully staged for resumption.")
         else:
-            print(f"🆕 Fresh Run: No pre-uploaded training checkpoints for {training_model_type} found.")
+            print(f"🆕 Fresh Run: No pre-uploaded training results found.")
 
 
 
