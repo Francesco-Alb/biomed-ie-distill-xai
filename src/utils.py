@@ -63,30 +63,32 @@ def seed_everything(seed: int) -> None:
         torch.backends.cudnn.benchmark = False
     print(f"✅ Seed set to {seed}")
 
-
 def setup_kaggle_environment(
     config: Any, 
     suffix: str, 
     kaggle_input_dir: Union[str, Path] = "/kaggle/input/datasets/username/datasetname",
     is_kaggle: bool = False,
     training_model_type: Optional[str] = None,
+    input_path_attrs: Optional[list[str]] = None,
 ) -> None:
     """
     Configures and stages environment paths when running inside a Kaggle notebook.
 
-    This function overwrites read-only configuration dataset paths to point to 
-    Kaggle's input directories, sets up writable working directories for checkpoints 
+    This function overwrites configuration input dataset paths to point to Kaggle's
+    read-only input directory, sets up writable working directories for checkpoints
     and results, and automatically handles staging/resuming existing checkpoints.
 
     Args:
         config (Any): The global configuration object containing data path attributes.
-        is_kaggle (bool): Flag indicating if the current runtime is Kaggle.
-            Defaults to False
         suffix (str): The filename or subpath suffix for the active checkpoint.
-        kaggle_input_dir (Union[str, Path], optional): The base path for Kaggle input datasets. 
+        kaggle_input_dir (Union[str, Path], optional): The base path for Kaggle input datasets.
             Defaults to "/kaggle/input/datasets/username/datasetname".
+        is_kaggle (bool): Flag indicating if the current runtime is Kaggle.
+            Defaults to False.
         training_model_type (str, optional): Model type for training checkpoints (e.g., "ner", "re").
-            If None, uses structured data extraction logic. Defaults to None.
+            If None, uses structured data extraction logic.
+        input_path_attrs (list[str], optional): Names of attributes in config.data that
+            should be treated as read-only input paths and remapped to Kaggle's input directory.
 
     Returns:
         None
@@ -96,10 +98,25 @@ def setup_kaggle_environment(
 
     print("💡 Kaggle environment detected. Overwriting config paths at runtime...")
 
-    # Ensure kaggle_input_dir is a Path object
     kaggle_input_base = Path(kaggle_input_dir)
     kaggle_working_dir = Path("/kaggle/working")
 
+    # --- INPUT DATASETS (Read-Only Input Paths) ---
+
+    if input_path_attrs:
+        for attr in input_path_attrs:
+            if not hasattr(config.data, attr):
+                raise AttributeError(
+                    f"Configuration is missing data.{attr}, but it was specified "
+                    "as a Kaggle input path."
+                )
+            original_path = getattr(config.data, attr)
+
+            if original_path is not None:
+                original_path = Path(original_path)
+                new_path = kaggle_input_base / original_path
+                setattr(config.data, attr, new_path)
+                print(f"🔄 Input: {original_path} → {new_path}")
 
     # --- STRUCTURED LLM EXTRACTION ---
 
@@ -136,7 +153,7 @@ def setup_kaggle_environment(
             print("🆕 Fresh Run: No matching input or working checkpoint discovered. Starting clean.")
 
     # --- TRAINING OUTPUTS / CHECKPOINTS (NER, RE, etc.) ---
-
+    
     else: 
 
         # Store training output directory in config for Trainer to use
@@ -146,6 +163,7 @@ def setup_kaggle_environment(
                 f"Configuration is missing model.{output_dir_attr} for training_model_type="
                 f"{training_model_type!r}."
             )
+
         original_output_dir = Path(getattr(config.model, output_dir_attr))
 
         uploaded_training_path = kaggle_input_base / original_output_dir
