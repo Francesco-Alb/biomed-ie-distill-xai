@@ -158,12 +158,6 @@ def aggregate_seed_results(
             "best_run": None,
         }
 
-    if sort_by_seed:
-        completed_runs = sorted(
-            completed_runs,
-            key=lambda x: (x["seed"] if x["seed"] is not None else float("inf"), x["run_dir"])
-        )
-
     scores = [run[eval_metric] for run in completed_runs]
     mean_score = float(np.mean(scores))
     std_score = float(np.std(scores))

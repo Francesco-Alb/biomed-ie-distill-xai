@@ -182,8 +182,24 @@ def _extract_metric_and_checkpoint(
         if scores:
             score = max(scores)
 
-    best_ckpt = state_data.get("best_model_checkpoint") or str(default_dir)
-    return (float(score) if score is not None else None), str(best_ckpt)
+    serialized_checkpoint = state_data.get("best_model_checkpoint")
+    
+    if serialized_checkpoint:
+        checkpoint_path = Path(serialized_checkpoint)
+    
+        if checkpoint_path.exists():
+            best_ckpt = checkpoint_path
+        else:
+            # Rebase paths serialized on another machine, e.g. /kaggle/working/...
+            local_checkpoint = default_dir / checkpoint_path.name
+            best_ckpt = local_checkpoint if local_checkpoint.exists() else default_dir
+    else:
+        best_ckpt = default_dir
+    
+    return (
+        float(score) if score is not None else None,
+        str(best_ckpt),
+    )
 
 
 def train_single_seed(

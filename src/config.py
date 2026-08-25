@@ -11,6 +11,7 @@ class EnvConfig:
     seed: int = 42
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     smoke_test: bool = False
+    overfit_test: bool = False
     push_to_hub: bool = True
 
 
