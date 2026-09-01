@@ -7,7 +7,6 @@ from typing import Any, Callable, Optional, Sequence
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from scipy.special import softmax
 import torch
 from peft import PeftModel
 import evaluate
@@ -272,13 +271,14 @@ def load_best_trainer(
     return best_trainer
 
 
-def get_validation_probabilities(trainer: Trainer, eval_dataset: Any) -> np.ndarray:
-    """
-    Extracts positive-class probabilities from a Trainer prediction output.
-    """
-    predictions = trainer.predict(eval_dataset)
-    probs = softmax(predictions.predictions, axis=-1)
-    return probs[:, 1]
+# def get_model_predictions(trainer: Trainer, dataset: Any) -> tuple[np.ndarray, np.ndarray]:
+#     """
+#     Extracts positive-class probabilities and hard predictions from a Trainer prediction output.
+#     """
+#     output = trainer.predict(dataset)
+#     probs = softmax(output.predictions, axis=-1)
+#     preds = np.argmax(output.predictions, axis=-1)
+#     return probs[:, 1], preds
 
 
 def find_optimal_threshold(val_probs: np.ndarray, val_labels: np.ndarray) -> float:
