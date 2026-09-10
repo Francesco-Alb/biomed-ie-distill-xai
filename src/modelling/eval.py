@@ -98,6 +98,7 @@ def compute_metrics_re(
 def aggregate_seed_results(
     output_dir: Path | str,
     eval_metric: str = "eval_f1",
+    model_name_filter: Optional[str] = None,
     plot: bool = False,
     save_plot_path: Path | str | None = None,
     *,
@@ -108,6 +109,7 @@ def aggregate_seed_results(
     Args:
         output_dir: Directory containing seed-specific model output folders.
         eval_metric: Metric key to aggregate (default: 'eval_f1').
+        model_name_filter: Optional string filter to restrict runs to a specific model name.
         plot: If True, renders a boxplot with individual seed data points.
         save_plot_path: Optional path to save the generated plot.
         verbose: If True, prints formatted summary.
@@ -123,6 +125,9 @@ def aggregate_seed_results(
     run_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
 
     for run_dir in run_dirs:
+        if model_name_filter and model_name_filter not in run_dir.name:
+            continue
+
         seed = _parse_seed_from_dir_name(run_dir.name)
         state_file = _get_trainer_state_file(run_dir)
 
