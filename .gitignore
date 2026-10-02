@@ -9,6 +9,9 @@ artifacts/
 logs/
 *.zip
 
+# OS generated files
+[Dd]esktop.ini
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
