@@ -8,6 +8,10 @@ results/
 artifacts/
 logs/
 *.zip
+*xlsx
+
+# Specific files
+re_prediction_errors-gold.csv
 
 # OS generated files
 [Dd]esktop.ini
