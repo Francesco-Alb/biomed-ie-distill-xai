@@ -244,11 +244,16 @@ def load_best_trainer(
     Reconstructs a Trainer from a best_run dict to perform post-training tasks.
     """
 
+    if "multiclass" in best_run['best_checkpoint']:
+        label_configs = model_configs.re_label_names_multiclass
+    else:
+        label_configs = model_configs.re_label_names_binary
+
     auto_config = AutoConfig.from_pretrained(
         model_configs.re_model_checkpoint,
-        num_labels=len(model_configs.re_label_names_binary),
-        id2label={i: label for i, label in enumerate(model_configs.re_label_names_binary)},
-        label2id={label: i for i, label in enumerate(model_configs.re_label_names_binary)}
+        num_labels=len(label_configs),
+        id2label={i: label for i, label in enumerate(label_configs)},
+        label2id={label: i for i, label in enumerate(label_configs)}
     )
     
     # Load base model

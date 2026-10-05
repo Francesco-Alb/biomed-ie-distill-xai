@@ -196,3 +196,46 @@ def merge_datasets_on_key(
 
     # Create new Dataset from merged DataFrame
     return Dataset.from_pandas(merged_df)
+
+
+def create_balanced_stratified_subset(
+    dataset_dict: DatasetDict,
+    n_samples: int = 64,
+    seed: int = 42,
+    label_column: str = "labels"
+) -> DatasetDict:
+    """
+    Downsamples a Hugging Face DatasetDict so that each split contains 
+    an equal number of samples per label category.
+    """
+    downsampled_splits = {}
+    for split, ds in dataset_dict.items():
+        df = ds.to_pandas()
+        
+        # If the split is already smaller than or equal to n_samples, keep it as is
+        if len(df) <= n_samples:
+            downsampled_splits[split] = ds
+            continue
+            
+        unique_labels = sorted(df[label_column].unique())
+        n_labels = len(unique_labels)
+        
+        # Calculate exact samples per label (e.g., 64 / 4 = 16)
+        samples_per_label = n_samples // n_labels
+        
+        sampled_dfs = []
+        for label in unique_labels:
+            df_label = df[df[label_column] == label]
+            sampled_label_df = df_label.sample(
+                n=min(len(df_label), samples_per_label), 
+                random_state=seed
+            )
+            sampled_dfs.append(sampled_label_df)
+            
+        # Combine and shuffle the stratified subset
+        df_subset = pd.concat(sampled_dfs).sample(frac=1.0, random_state=seed).reset_index(drop=True)
+        
+        # Convert back to Hugging Face Dataset
+        downsampled_splits[split] = Dataset.from_pandas(df_subset, preserve_index=False)
+        
+    return DatasetDict(downsampled_splits)
