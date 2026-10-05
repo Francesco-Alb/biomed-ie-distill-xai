@@ -16,9 +16,6 @@ re_prediction_errors-gold.csv
 # OS generated files
 [Dd]esktop.ini
 
-[Dd]esktop.ini
-re_prediction_errors-gold.csv
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
