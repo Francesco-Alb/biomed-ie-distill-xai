@@ -9,6 +9,9 @@ artifacts/
 logs/
 *.zip
 
+[Dd]esktop.ini
+re_prediction_errors-gold.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
