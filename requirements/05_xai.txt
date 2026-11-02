@@ -3,6 +3,17 @@
 
 -r 00_core.txt
 
+torch
+torchao==0.17.0
 transformers
+peft
 datasets
 evaluate
+accelerate
+seqeval
+
+trackio
+wandb
+gradio
+shap
+transformers-interpret
