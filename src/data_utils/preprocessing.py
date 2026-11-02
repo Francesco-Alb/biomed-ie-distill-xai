@@ -96,18 +96,41 @@ def flatten_bc5cdr(dataset_split: Dataset) -> Dataset:
     return Dataset.from_pandas(pd.DataFrame(flat_data))
 
 
+def _tag_candidate_pair(
+    text: str,
+    chemical_spans: list[tuple[int, int]],
+    disease_spans: list[tuple[int, int]],
+) -> str:
+    insertions = []
+    for start, end in chemical_spans:
+        insertions.append((start, "<chemical> "))
+        insertions.append((end, " </chemical>"))
+    for start, end in disease_spans:
+        insertions.append((start, "<disease> "))
+        insertions.append((end, " </disease>"))
+
+    # Note: insert in reverse order, to prevent offset shifting
+    insertions.sort(key=lambda item: item[0], reverse=True)
+    text_list = list(text)
+    for index, tag in insertions:
+        text_list.insert(index, tag)
+    return "".join(text_list)
+
+
 def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
     """
-    Create labeled candidate pairs from a given row.
+    Create MeSH-grouped, labeled candidate pairs from a gold-annotated row.
 
     Args:
-    - row (pd.Series): A pandas Series containing the data for a single row.
+        row: A row containing ``text``, ``entities`` with ``mesh_id`` and
+            ``offsets``, and optionally gold ``relations``.
 
     Returns:
-    - pd.DataFrame: A pandas DataFrame containing the labeled candidate pairs.
+        Candidate records with tagged text, MeSH IDs, and binary gold labels.
 
-    Notes:
-    - This function assumes that the input row contains the necessary information to create labeled candidate pairs.
+    Mentions sharing a MeSH ID are grouped, and labels come from the row's
+    gold relations. For unlabeled NER predictions without MeSH IDs, use
+    :func:`make_inference_candidate_pairs` instead.
     """
     text = row["text"]
     entities = row["entities"]
@@ -139,29 +162,9 @@ def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
         
         label = 1 if (chem_id, dis_id) in true_relations else 0
         
-        # 4. Gather ALL tag insertions for ALL mentions of this specific pair
-        insertions = []
-        
-        # Collect all chemical mention boundaries for this ID
-        for chem_ent in chem_groups[chem_id]:
-            c_start, c_end = chem_ent["offsets"]
-            insertions.append((c_start, "<chemical> "))
-            insertions.append((c_end, " </chemical>"))
-            
-        # Collect all disease mention boundaries for this ID
-        for dis_ent in dis_groups[dis_id]:
-            d_start, d_end = dis_ent["offsets"]
-            insertions.append((d_start, "<disease> "))
-            insertions.append((d_end, " </disease>"))
-            
-        # CRITICAL: Sort all collected insertions back-to-front
-        insertions.sort(key=lambda x: x[0], reverse=True)
-        
-        # Inject all tags into a single text version
-        text_list = list(text)
-        for idx, tag in insertions:
-            text_list.insert(idx, tag)
-        masked_text = "".join(text_list)
+        chemical_spans = [tuple(entity["offsets"]) for entity in chem_groups[chem_id]]
+        disease_spans = [tuple(entity["offsets"]) for entity in dis_groups[dis_id]]
+        masked_text = _tag_candidate_pair(text, chemical_spans, disease_spans)
         
         # Get standard string names for the final dataframe columns
         chem_name = chem_groups[chem_id][0]["text"].lower()
@@ -177,6 +180,43 @@ def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
             "label": label
         })
         
+    return candidate_rows
+
+
+def make_inference_candidate_pairs(text: str, entities: list[dict]) -> list[dict]:
+    """Create unlabeled, mention-level candidate pairs from predicted NER spans.
+
+    Args:
+        text: Source sentence or document whose offsets are used by the NER output.
+        entities: Token-classification pipeline entities with ``entity_group``
+            (``Chemical`` or ``Disease``), ``start``, and ``end`` fields.
+
+    Returns:
+        One tagged candidate record per predicted chemical-mention/disease-mention
+        pair. Records contain the mention strings and ``masked_text`` but no label
+        or MeSH IDs, since neither is available at inference time.
+
+    Unlike :func:`create_labeled_candidate_pairs`, this function pairs individual
+    predicted mentions and does not consult gold relations. Use the labeled helper
+    when preparing annotated training or evaluation rows.
+    """
+    chemicals = [entity for entity in entities if entity["entity_group"] == "Chemical"]
+    diseases = [entity for entity in entities if entity["entity_group"] == "Disease"]
+    candidate_rows = []
+
+    for chemical, disease in itertools.product(chemicals, diseases):
+        masked_text = _tag_candidate_pair(
+            text,
+            [(chemical["start"], chemical["end"])],
+            [(disease["start"], disease["end"])],
+        )
+        candidate_rows.append({
+            "sentence": text,
+            "chemical": text[chemical["start"]:chemical["end"]],
+            "disease": text[disease["start"]:disease["end"]],
+            "masked_text": masked_text,
+        })
+
     return candidate_rows
 
 
