@@ -333,9 +333,9 @@ These artifacts are useful for reviewing label agreement, misclassification patt
 The training notebook writes checkpoints under the relation results folders, with model names following the pattern:
 
 - `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.1-gold-seed42`
-- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-seed1`
-- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-seed42`
-- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-seed123`
+- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-binary-seed1`
+- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-binary-seed42`
+- `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-binary-seed123`
 - `Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2-qwen2.5-14b-instruct-gguf-multiclass-seed42`
 
 When running on Kaggle, the notebook also zips the output directory to `/kaggle/working/results.zip` so the training artifacts can be downloaded directly after the run.
