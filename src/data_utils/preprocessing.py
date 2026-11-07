@@ -184,36 +184,68 @@ def create_labeled_candidate_pairs(row: pd.Series) -> list[dict]:
 
 
 def make_inference_candidate_pairs(text: str, entities: list[dict]) -> list[dict]:
-    """Create unlabeled, mention-level candidate pairs from predicted NER spans.
+    """
+    Generate candidate chemical-disease pairs for inference.
+
+    Unlike :func:`create_labeled_candidate_pairs`, which groups entity
+    mentions by their MeSH identifiers, this function groups predicted
+    entities by their normalized surface forms, since entity identifiers
+    are not available at inference time.
+
+    All occurrences of a given surface form are collected and tagged
+    together when constructing a candidate pair. This ensures that
+    repeated mentions of the same entity are represented consistently
+    with the training data, rather than generating separate candidate
+    pairs for each individual mention.
+
+    Note that grouping by surface form is an approximation of the
+    MeSH-based grouping used during training: different concepts sharing
+    the same surface form may be grouped together, while mentions of the
+    same concept expressed with different surface forms remain separate.
 
     Args:
-        text: Source sentence or document whose offsets are used by the NER output.
-        entities: Token-classification pipeline entities with ``entity_group``
-            (``Chemical`` or ``Disease``), ``start``, and ``end`` fields.
+        text: Input text containing the entity mentions.
+        entities: Predicted entities, each containing an ``entity_group``,
+            ``start``, and ``end`` field.
 
     Returns:
-        One tagged candidate record per predicted chemical-mention/disease-mention
-        pair. Records contain the mention strings and ``masked_text`` but no label
-        or MeSH IDs, since neither is available at inference time.
-
-    Unlike :func:`create_labeled_candidate_pairs`, this function pairs individual
-    predicted mentions and does not consult gold relations. Use the labeled helper
-    when preparing annotated training or evaluation rows.
+        A list of dictionaries containing the original sentence, chemical
+        and disease surface forms, and the corresponding masked text.
     """
-    chemicals = [entity for entity in entities if entity["entity_group"] == "Chemical"]
-    diseases = [entity for entity in entities if entity["entity_group"] == "Disease"]
+    chemicals = {}
+    diseases = {}
+
+    for entity in entities:
+        entity_text = text[entity["start"]:entity["end"]]
+        key = entity_text.casefold().strip()
+
+        if entity["entity_group"] == "Chemical":
+            chemicals.setdefault(key, []).append(entity)
+        elif entity["entity_group"] == "Disease":
+            diseases.setdefault(key, []).append(entity)
+
     candidate_rows = []
 
-    for chemical, disease in itertools.product(chemicals, diseases):
+    for chemical_group, disease_group in itertools.product(
+        chemicals.values(), diseases.values()
+    ):
+        chemical_spans = [
+            (entity["start"], entity["end"]) for entity in chemical_group
+        ]
+        disease_spans = [
+            (entity["start"], entity["end"]) for entity in disease_group
+        ]
+
         masked_text = _tag_candidate_pair(
             text,
-            [(chemical["start"], chemical["end"])],
-            [(disease["start"], disease["end"])],
+            chemical_spans,
+            disease_spans,
         )
+
         candidate_rows.append({
             "sentence": text,
-            "chemical": text[chemical["start"]:chemical["end"]],
-            "disease": text[disease["start"]:disease["end"]],
+            "chemical": text[chemical_spans[0][0]:chemical_spans[0][1]],
+            "disease": text[disease_spans[0][0]:disease_spans[0][1]],
             "masked_text": masked_text,
         })
 
