@@ -23,7 +23,7 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 │   ├── 03_weak_supervision.ipynb
 │   ├── 04_re_eval.ipynb
 │   ├── 04_re_training.ipynb
-│   ├── 05_pipeline_eval_xai.ipynb
+│   ├── 05_xai.ipynb
 │   └── kaggle/
 ├── requirements/
 │   ├── 00_core.txt
@@ -31,7 +31,7 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 │   ├── 02_ner_training.txt
 │   ├── 03_weak_supervision.txt
 │   ├── 04_re_training.txt
-│   ├── 05_pipeline_eval_xai.txt
+│   ├── 05_xai.txt
 │   └── kaggle/
 ├── results/
 │   ├── ner/
@@ -243,6 +243,8 @@ The notebook uses the weak supervision dependency set from `requirements/03_weak
 
 This notebook is the bridge between the cleaned biomedical dataset and the structured extraction artifacts used in later relation experiments.
 
+---
+
 ### Notebook 04a: Relation Extraction training (`notebooks/04_re_training.ipynb`)
 
 This notebook trains the relation-extraction classifier on top of the weakly labeled chemical-disease pairs generated in the previous stage. It merges the structured extraction outputs with the gold relation metadata, normalizes the label schema, and fine-tunes a biomedical Longformer model with LoRA for binary or multiclass relation classification.
@@ -408,6 +410,41 @@ $$⌛Pending...$$
 
 This notebook closes the loop on the relation-extraction pipeline: the best trained model is selected, the decision boundary is calibrated on validation data, and the final performance is summarized on the held-out test set using the same protocol as the rest of the project.
 
+
+---
+
+### Notebook 05: End-to-end diagnostics and explainability (`notebooks/05_xai.ipynb`)
+
+This notebook evaluates the end-to-end extraction pipeline on a small, manually constructed diagnostic set and generates token-level explanations for the relation classifier. Unlike the relation-extraction evaluation in Notebook 04b, it starts from raw text and runs both named entity recognition (NER) and relation classification.
+
+#### What the notebook does
+
+- loads the diagnostic examples from [`data/diagnostic_set.csv`](data/diagnostic_set.csv), generating the file with [`scripts/make_diagnostic_set.py`](scripts/make_diagnostic_set.py) if it is missing,
+- loads the latest NER checkpoint and the best saved binary or multiclass relation-extraction run,
+- extracts chemical and disease entities, constructs candidate pairs, and predicts a relation for each pair,
+- matches the generated candidate pairs against the manually specified diagnostic targets and compares predictions with the expected labels,
+- generates token-level explanations for selected relation predictions using [`transformers-interpret`](https://github.com/cdpierse/transformers-interpret).
+
+#### Diagnostic evaluation
+
+The diagnostic set is designed to probe specific pipeline behaviours, including negation, uncertainty, temporal association, treatment, antagonism, multiple entity pairs, and information spread across sentences. The notebook saves the candidate-pair predictions and target-pair matches to mode-specific CSV files:
+
+- Binary: [`diagnostic_binary_results.csv`](evals/tables/diagnostic_binary_results.csv)
+- Multiclass: [`diagnostic_multiclass_results.csv`](evals/tables/diagnostic_multiclass_results.csv)
+
+These are small, targeted diagnostic checks rather than estimates of general performance on biomedical text. Classification is assessed on successfully extracted target pairs, while entity-extraction failures are recorded separately. Other generated candidate pairs are retained for qualitative inspection.
+
+#### Token-level explanations
+
+The notebook generates token-attribution visualizations for selected relation predictions in each mode. The highlighted tokens indicate their contribution to the model's selected prediction and support qualitative inspection; they should not be interpreted as causal feature importance or as evidence of model behaviour across the full dataset.
+
+- [Binary relation explanation](evals/xai_binary_viz.html)
+- [Multiclass relation explanation](evals/xai_multiclass_viz.html)
+
+The notebook uses the XAI dependencies listed in `requirements/05_xai.txt` and records the environment snapshot in `snapshots/05_xai.txt`.
+
+This notebook complements the held-out evaluation by examining end-to-end pipeline behaviour and providing an initial, qualitative view of individual model predictions. Its small diagnostic set and sample-level explanations should be interpreted accordingly.
+
 ---
 
 ## Overall results and takeaways
@@ -460,14 +497,44 @@ The expanded multiclass setup goes beyond the original BC5CDR binary objective a
 
 The multiclass evaluation reached roughly `accuracy ≈ 0.72` and `macro F1 ≈ 0.56`. That is respectable for an expanded label taxonomy, but it also makes the main limitation obvious: the additional classes are much rarer than the main positive/negative split, and the minority classes suffer from sparse support.
 
-The class-wise results show the trade-off clearly:
+The held-out test results by class show the trade-off clearly:
 
-- class 0: `F1 ≈ 0.78`
-- class 1: `F1 ≈ 0.71`
-- class 2: `F1 ≈ 0.50`
-- class 3: `F1 ≈ 0.25`
+| Class | Relation type | Precision | Recall | F1 | Support |
+|:---:|:---|---:|---:|---:|---:|
+| 0 | No relation | 0.796 | 0.756 | 0.775 | 2,996 |
+| 1 | Causation / adverse effect | 0.671 | 0.754 | 0.710 | 1,612 |
+| 2 | Treatment / prevention | 0.510 | 0.483 | 0.496 | 573 |
+| 3 | Active antagonism / reversal | 0.282 | 0.222 | 0.249 | 99 |
+
+Across all 5,280 test examples, accuracy is `0.716`, macro F1 is `0.558`, and weighted F1 is `0.715`. The class supports make the imbalance concrete: class 3 has only 99 examples, compared with 2,996 for class 0.
 
 The results highlight the cost of expanding the label space under severe class imbalance. The multiclass extension is more clinically expressive, but the rarest categories remain difficult to learn reliably and would benefit from additional data or a more curated label policy.
+
+### End-to-end diagnostic evaluation
+
+In addition to the held-out test evaluation, I conducted a small, manually constructed diagnostic evaluation to examine the behaviour of the complete pipeline (see [`notebooks/05_xai.ipynb`](notebooks/05_xai.ipynb)). Unlike the held-out test results, which assess relation extraction using the gold entity spans supplied by BC5CDR, this evaluation starts from raw text and therefore tests the interaction between named entity recognition (NER), candidate-pair generation, and relation classification.
+
+The [diagnostic_set](data\diagnostic_set.csv) (generated with [`make_diagnostic_set.py`](scripts\make_diagnostic_set.py)) consists of 22 sentences designed to expose potential weaknesses under controlled conditions. The examples cover several challenges, including negation, uncertainty, temporal association, treatment and prevention, antagonistic relations, multiple chemical–disease pairs, and information distributed across sentences. The objective is not to estimate performance on a representative sample of biomedical text, but to identify specific strengths and failure modes that may otherwise remain difficult to isolate in aggregate test results.
+
+#### Entity extraction and candidate-pair generation
+
+The NER component successfully extracted the manually specified target chemical–disease pair in 18 of the 22 examples (81.8%). The four unmatched cases illustrate entity-boundary and recognition errors: splitting type 2 diabetes into separate entities, identifying only the final character of blood clots, and extracting *rash* rather than the full entity *skin rash* in two examples.
+
+These errors matter because downstream relation classification depends on the entities identified by the NER component. A relation classifier may produce a plausible prediction for a candidate pair, but that prediction cannot compensate for an incorrectly identified or incomplete entity. The diagnostic evaluation therefore distinguishes target-pair extraction failures from classification errors.
+
+#### Relation classification
+
+The binary model correctly classified 11 of the 18 successfully extracted target pairs. Its main strength was identifying the positive causal relations in the diagnostic set: all three positive examples were classified correctly. However, it also produced false positives in several negative examples, particularly those involving temporal associations, negation, uncertainty, or the explicit absence of a clinical condition. This suggests that the model can identify clear causal statements but has difficulty consistently distinguishing asserted relations from mentions that merely place a chemical and a disease in the same context.
+
+The multiclass model correctly classified 9 of the 18 target pairs. It handled treatment-related examples relatively well, correctly distinguishing most of them from causal relations. It also identified all three positive causal examples. However, it struggled with the antagonism category: neither of the two antagonism examples received the intended label, with both instead classified as treatment relations. The model also showed difficulties with negative statements and contextual attribution, particularly when the text mentioned a possible adverse effect without establishing that it had occurred.
+
+These counts should be interpreted descriptively rather than as estimates of generalisable model performance. The diagnostic set is deliberately small and constructed around specific linguistic challenges; its class distribution and example selection do not reflect the distribution of relations in the original corpus. Its value lies primarily in making individual pipeline behaviours observable and helping identify areas for further refinement.
+
+#### Interpretation
+
+The diagnostic results expose limitations that are less visible in the held-out relation extraction evaluation. In particular, they show that performance with gold entity spans does not necessarily translate into equivalent performance when the system must identify entities and construct candidate pairs from raw text. They also highlight the importance of contextual interpretation: identifying a chemical and a disease in the same sentence is not sufficient to establish a relation between them, and distinguishing causation from treatment or antagonism requires more than recognising their co-occurrence.
+
+The diagnostic set therefore complements the quantitative test results rather than competing with them. It provides a controlled assessment of the end-to-end pipeline, identifies concrete weaknesses in entity recognition and relation classification, and offers a basis for targeted improvements.
 
 ### Why this matters
 
