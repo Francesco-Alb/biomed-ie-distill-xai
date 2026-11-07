@@ -1,0 +1,28 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "document_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "pair_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "chain_of_thought": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "weak_label": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "extraction_status": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}

@@ -1,0 +1,36 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "document_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "chemical": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "disease": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "chemical_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "disease_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "masked_text": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "label": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
