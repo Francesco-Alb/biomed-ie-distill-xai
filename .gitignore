@@ -1,14 +1,20 @@
 # other (custom additions)
 .ignore/
-data/
 models/
 tmp_trainer/
-checkpoints/
 results/
 artifacts/
 logs/
 *.zip
 *xlsx
+
+# # Ignore everything inside 'parent_folder' except for !parent_folder/keep_me
+# /data/*
+# !data/diagnostic_set.csv
+
+# Generated datasets and model checkpoints
+/data/**/*.arrow
+/data/**/*.parquet
 
 # Specific files
 re_prediction_errors-gold.csv
