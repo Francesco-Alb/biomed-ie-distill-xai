@@ -1,4 +1,4 @@
-id,text,target_chemical,target_disease,expected_multiclass,test_category,expected_binary,chemical,disease,masked_text,predicted_relation,score,predicted_label,is_target_pair
+id,text,target_chemical,target_disease,expected_multiclass,test_category,expected_binary,chemical,disease,masked_text,predicted_label_str,score,predicted_label_int,is_target_pair
 1,Aspirin caused severe stomach irritation in the patient.,Aspirin,stomach irritation,1,causation,1,Aspirin,stomach irritation,<chemical> Aspirin </chemical> caused severe <disease> stomach irritation </disease> in the patient.,Chemical-Disease-Relation,0.9993492960929871,1,True
 2,The patient developed a rash after taking amoxicillin.,amoxicillin,rash,0,temporal association,0,amoxicillin,rash,The patient developed a <disease> rash </disease> after taking <chemical> amoxicillin </chemical>.,Chemical-Disease-Relation,0.9998939037322998,1,True
 3,Amoxicillin did not cause a rash in the patient.,Amoxicillin,rash,0,negation,0,Amoxicillin,rash,<chemical> Amoxicillin </chemical> did not cause a <disease> rash </disease> in the patient.,Chemical-Disease-Relation,0.913022518157959,1,True
