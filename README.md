@@ -254,7 +254,7 @@ This notebook trains the relation-extraction classifier on top of the weakly lab
 - initializes the project in either Kaggle or Colab, including the GitHub/Kaggle dataset setup,
 - loads the flattened text data plus the relation reference set and structured weak labels,
 - merges pair-level weak labels with the gold relation annotations via `merge_datasets_on_key(...)`,
-- applies binary label alignment when `config.model.align_labels = True`, collapsing higher labels into a positive/negative scheme,
+- applies binary label alignment when `config.model.re_classification_mode = 'binary'`, collapsing higher labels into a positive/negative scheme,
 - tokenizes `masked_text` inputs for sequence classification,
 - trains LoRA adapters with early stopping and evaluation on validation data,
 - saves model checkpoints and zipped training outputs for Kaggle runs.
@@ -300,9 +300,8 @@ The training loop also evaluates multiple seeds (`1`, `42`, `123`) and uses `Ear
 A key part of the notebook is the quality check between weak supervision labels and the gold labels. It computes a classification report and confusion matrix before training, which helps validate whether the weak labels are reliable enough for model optimization.
 
 The notebook specifically supports both:
-
-- binary alignment mode: `align_labels = True`
-- multiclass mode: `align_labels = False`
+- binary alignment mode: `re_classification_mode = 'binary'`
+- multiclass mode: `re_classification_mode = 'multiclass'`
 
 and dynamically chooses the target label column as:
 
@@ -385,7 +384,7 @@ This threshold is then used to compare:
 - default threshold metrics at `0.5`
 - tuned threshold metrics at the optimal value
 
-For multiclass settings (`align_labels = False`), it instead reports the class-wise classification summary using `classification_report(...)`.
+For multiclass settings (`config.model.re_classification_mode = 'multiclass'`), it instead reports the class-wise classification summary using `classification_report(...)`.
 
 #### Generated evaluation artifacts
 
