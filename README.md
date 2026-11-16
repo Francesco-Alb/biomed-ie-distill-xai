@@ -428,8 +428,8 @@ This notebook evaluates the end-to-end extraction pipeline on a small, manually 
 
 The diagnostic set is designed to probe specific pipeline behaviours, including negation, uncertainty, temporal association, treatment, antagonism, multiple entity pairs, and information spread across sentences. The notebook saves the candidate-pair predictions and target-pair matches to mode-specific CSV files:
 
-- Binary: [`diagnostic_binary_results.csv`](evals/tables/diagnostic_binary_results.csv)
-- Multiclass: [`diagnostic_multiclass_results.csv`](evals/tables/diagnostic_multiclass_results.csv)
+- Binary: [`diagnostic_results_binary.csv`](evals/tables/diagnostic_results_binary.csv)
+- Multiclass: [`diagnostic_results_multiclass.csv`](evals/tables/diagnostic_results_multiclass.csv)
 
 These are small, targeted diagnostic checks rather than estimates of general performance on biomedical text. Classification is assessed on successfully extracted target pairs, while entity-extraction failures are recorded separately. Other generated candidate pairs are retained for qualitative inspection.
 
@@ -437,12 +437,29 @@ These are small, targeted diagnostic checks rather than estimates of general per
 
 The notebook generates token-attribution visualizations for selected relation predictions in each mode. The highlighted tokens indicate their contribution to the model's selected prediction and support qualitative inspection; they should not be interpreted as causal feature importance or as evidence of model behaviour across the full dataset.
 
-- [Binary relation explanation](evals/xai_binary_viz.html)
-- [Multiclass relation explanation](evals/xai_multiclass_viz.html)
+- [Binary relation explanation](evals/images/xai/transformers-interpret/transformers-interpret_viz_binary.png)
+- [Multiclass relation explanation](evals/images/xai/transformers-interpret/transformers-interpret_viz_multiclass.png)
 
 The notebook uses the XAI dependencies listed in `requirements/05_xai.txt` and records the environment snapshot in `snapshots/05_xai.txt`.
 
-This notebook complements the held-out evaluation by examining end-to-end pipeline behaviour and providing an initial, qualitative view of individual model predictions. Its small diagnostic set and sample-level explanations should be interpreted accordingly.
+#### Qualitative SHAP results
+
+The PNG filenames use the format `ExPy`, where `x` is the expected label and `y` is the model's predicted label. Thus, matching values indicate a correct prediction, while different values indicate an error. In the binary examples, class 0 means no relation and class 1 means a relation. In the multiclass examples, class 1 is causation, class 2 is treatment/prevention, and class 3 is antagonism/reversal.
+
+These are individual examples, not aggregate evidence of model behaviour. The token values below are the local attribution values shown when inspecting the HTML explanations; they help identify which words influenced each prediction, but should not be interpreted as causal effects or general feature importance.
+
+**Binary model**
+
+- **False positive (`E0P1`):** [shap-id7-E0P1.png](evals/images/xai/shap/binary/shap-id7-E0P1.png). In “Amoxicillin did not cause a rash,” the negation tokens `did` (-0.41) and `not` (-0.495) oppose a positive relation prediction, but `cause` (+0.997) and the disease mention `rash` (+0.19) contribute toward it. This illustrates how a strong causal phrase can outweigh an explicit negation.
+- **Correct positive (`E1P1`):** [shap-id8-E1P1.png](evals/images/xai/shap/binary/shap-id8-E1P1.png). For “Naloxone reversed the respiratory depression caused by morphine,” `caused` (+3.094) and `by` (+1.258) are prominent positive cues, while `reversed` (-0.207) and the disease tokens `respiratory` (-0.468) and `depression` (-0.821) push the other way. The model still predicts a relation.
+- **False positive (`E0P1`):** [shap-id9-E0P1.png](evals/images/xai/shap/binary/shap-id9-E0P1.png). In “The patient received naloxone, but no respiratory depression was observed,” `naloxone` (+1.023) supports the positive prediction, while `no` (-1.09) opposes it. The error suggests that the model does not consistently let explicit absence override the drug mention and surrounding context.
+
+**Multiclass model**
+
+- **Correct causation (`E1P1`):** [shap-id2-E1P1.png](evals/images/xai/shap/multiclass/shap-id2-E1P1.png). In the sentence about respiratory depression caused by morphine, `caused` (+12.152) is the dominant cue for the predicted causal relation.
+- **Correct treatment (`E2P2`):** [shap-id6-E2P2.png](evals/images/xai/shap/multiclass/shap-id6-E2P2.png). In “Ibuprofen relieved the patient's headache,” `relieved` (+9.307) strongly supports the treatment/prevention prediction.
+- **Treatment predicted instead of antagonism (`E3P2`):** [shap-id12-E3P2.png](evals/images/xai/shap/multiclass/shap-id12-E3P2.png). Although the sentence says naloxone `counter` (+3.517) `acted` (+3.775) against respiratory depression, the model predicts class 2 (treatment/prevention) instead of class 3 (antagonism). It appears to recognize the intervention but does not distinguish the reversal relation correctly.
+- **Treatment predicted instead of antagonism (`E3P2`):** [shap-id13-E3P2.png](evals/images/xai/shap/multiclass/shap-id13-E3P2.png). Here `reversed` (+7.799) is a strong cue, yet the prediction is again treatment/prevention rather than antagonism. Together, these two errors show that the model struggles to separate active reversal from treatment, even when reversal language is prominent.
 
 ---
 
