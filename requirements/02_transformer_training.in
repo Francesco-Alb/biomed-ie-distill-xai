@@ -1,0 +1,20 @@
+# 02_transformer_training.in
+
+-r 00_core.in
+
+# Core ML framework
+torch ==2.10.0
+torchao==0.17.0
+
+# Hugging Face
+transformers
+peft
+datasets
+accelerate
+evaluate
+seqeval
+
+# Experiment tracking and interfaces
+trackio
+wandb
+gradio

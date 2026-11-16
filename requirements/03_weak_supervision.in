@@ -1,0 +1,20 @@
+# 03_weak_supervision.in
+
+-r 00_core.in
+
+# Core ML framework
+torch==2.11.0
+torchao==0.17.0
+bitsandbytes
+
+# Model and inference libraries
+transformers<5
+sentence-transformers
+datasets
+outlines
+accelerate
+
+# API clients and structured outputs
+groq
+instructor
+pydantic>=2

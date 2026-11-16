@@ -1,0 +1,10 @@
+# 05_xai
+
+-r 02_transformer_training.in
+
+# Explainability
+shap
+transformers-interpret
+
+# Conservative compatibility constraint
+# transformers>=5
