@@ -1,6 +1,6 @@
-# 01_data_prep.in
+# data_prep.in
 
--r 00_core.in
+-r core.in
 
 datasets==3.6.0     # solves: "RuntimeError: Dataset scripts are no longer supported, but found bc5cdr.py"
                     # see: https://github.com/huggingface/datasets/issues/7693#issuecomment-3103380232

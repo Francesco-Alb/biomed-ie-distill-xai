@@ -1,6 +1,6 @@
-# 05_xai
+# xai
 
--r 02_transformer_training.in
+-r transformer_training.in
 
 # Explainability
 shap

@@ -1,6 +1,6 @@
-# 03_weak_supervision.in
+# weak_supervision.in
 
--r 00_core.in
+-r core.in
 
 # Core ML framework
 torch==2.11.0
