@@ -2,15 +2,18 @@
 .ignore/
 models/
 tmp_trainer/
-results/
 artifacts/
 logs/
 *.zip
 *xlsx
 
-# # Ignore everything inside 'parent_folder' except for !parent_folder/keep_me
-# /data/*
-# !data/diagnostic_set.csv
+# Ignore everything inside results/ner and results/re recursively
+results/ner/*
+results/re/*
+
+# But un-ignore all .gitkeep files anywhere inside them (to keep folder structure)
+!results/ner/**/.gitkeep
+!results/re/**/.gitkeep
 
 # Generated datasets and model checkpoints
 /data/**/*.arrow
