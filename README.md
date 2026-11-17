@@ -26,17 +26,17 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 │   ├── 05_xai.ipynb
 │   └── kaggle/
 ├── requirements/
-│   ├── 00_core.txt
-│   ├── 01_data_prep.txt
-│   ├── 02_ner_training.txt
-│   ├── 03_weak_supervision.txt
-│   ├── 04_re_training.txt
-│   ├── 05_xai.txt
+│   ├── core.in
+│   ├── data_prep.in
+│   ├── transformer_training.in
+│   ├── weak_supervision.in
+│   ├── xai.in
+│   ├── locks/
+│   ├── snapshots/
 │   └── kaggle/
 ├── results/
 │   ├── ner/
 │   └── re/
-├── snapshots/
 ├── src/
 │   ├── __init__.py
 │   ├── config.py
@@ -67,8 +67,26 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 ## Getting started
 
 1. Create a Python environment.
-2. Install dependencies from `requirements/00_core.txt` and any stage-specific requirements as needed.
+2. Install a target-specific lock file from `requirements/locks/` (see [Dependency management](#dependency-management)).
 3. Use the notebooks in `notebooks/` to run data preparation, training, and evaluation.
+
+## Dependency management
+
+The `requirements/` directory separates dependency inputs, reproducible lock files, and records of environments used for notebook runs:
+
+- **`.in` files** are the maintained dependency inputs. They list direct dependencies and may include shared inputs such as `core.in`. For example, `transformer_training.in` defines the dependencies shared by NER and relation-model training.
+- **`locks/`** contains generated, fully pinned `.txt` files for a specific Python version and platform. Install the matching lock file for your environment, for example:
+  ```bash
+  uv pip install -r requirements/locks/transformer_training-colab-py312-linux.txt
+  ```
+  Regenerate a Colab Python 3.12 Linux lock from the project root with:
+  ```bash
+  uv pip compile requirements/transformer_training.in \
+    -o requirements/locks/transformer_training-colab-py312-linux.txt \
+    --python-version 3.12 --python-platform linux
+  ```
+- **`snapshots/`** contains `pip freeze` captures from notebook environments. These are historical records for inspection, not the maintained dependency inputs; use the corresponding lock file for installs.
+- **`kaggle/`** holds the Kaggle-specific weak-supervision requirements file.
 
 ## Notebook Guides
 
@@ -236,10 +254,10 @@ This makes it suitable for later labeling, filtering, and relation-model trainin
 
 #### Dependencies and artifacts
 
-The notebook uses the weak supervision dependency set from `requirements/03_weak_supervision.txt`, with a Kaggle-specific variant in `requirements/kaggle/03_weak_supervision_kaggle.txt`. The environment was also frozen into snapshots:
+The notebook uses the weak-supervision lock in `requirements/locks/weak_supervision-colab-py312-linux.txt`, with a Kaggle-specific variant in `requirements/kaggle/03_weak_supervision_kaggle.txt`. The environment was also frozen into snapshots:
 
-- `snapshots/03_weak_supervision.txt`
-- `snapshots/03_weak_supervision_kaggle.txt`
+- `requirements/snapshots/03_weak_supervision.txt`
+- `requirements/snapshots/03_weak_supervision_kaggle.txt`
 
 This notebook is the bridge between the cleaned biomedical dataset and the structured extraction artifacts used in later relation experiments.
 
@@ -343,13 +361,13 @@ When running on Kaggle, the notebook also zips the output directory to `/kaggle/
 
 #### Dependencies and snapshots
 
-The relation training stage uses the project’s dedicated dependency file:
+The relation training stage uses the transformer-training lock:
 
-- `requirements/04_re_training.txt`
+- `requirements/locks/transformer_training-colab-py312-linux.txt`
 
 and saves the environment snapshot to:
 
-- `snapshots/04_re_training.txt`
+- `requirements/snapshots/04_re_training.txt`
 
 This notebook is the core training step that turns the weakly supervised pair labels into a usable biomedical relation model.
 
@@ -440,7 +458,7 @@ The notebook generates token-attribution visualizations for selected relation pr
 - [Binary relation explanation](evals/images/xai/transformers-interpret/transformers-interpret_viz_binary.png)
 - [Multiclass relation explanation](evals/images/xai/transformers-interpret/transformers-interpret_viz_multiclass.png)
 
-The notebook uses the XAI dependencies listed in `requirements/05_xai.txt` and records the environment snapshot in `snapshots/05_xai.txt`.
+The notebook uses the XAI lock in `requirements/locks/xai-colab-py312-linux.txt` and records the environment snapshot in `requirements/snapshots/05_xai.txt`.
 
 #### Qualitative SHAP results
 
