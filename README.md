@@ -45,6 +45,8 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 │   │   └── preprocessing.py
 │   ├── evaluation/
 │   │   └── diagnostics.py
+│   ├── explainable_ai/
+│   │   └── shap_xai.py
 │   ├── modelling/
 │   │   ├── __init__.py
 │   │   ├── eval.py
@@ -56,7 +58,8 @@ This is intentionally broader than the original BC5CDR binary formulation. The w
 │       ├── generator.py
 │       ├── prompts.py
 │       └── pydantic_schema.py
-├── trainer_output/
+├── scripts/
+│   └── make_diagnostic_set.py
 ├── .python-version
 ├── .gitignore
 ├── README.md
@@ -104,7 +107,7 @@ This notebook handles data loading and preprocessing for the biomedical extracti
 1. Load the BC5CDR dataset from Hugging Face (`bigbio/bc5cdr`)
 2. Ensure proper train/validation/test splits
 3. Flatten nested dataset structure for token classification
-4. Save processed dataset to `data/processed/bc5cdr_flattened_hf/`
+4. Save processed dataset to `data/processed/bc5cdr_flattened/`
 
 **Output:** Flattened HuggingFace Arrow datasets ready for model training
 
@@ -186,7 +189,7 @@ training_args = TrainingArguments(
 <details>
 <summary>📊 Training Loss Curve</summary>
 
-![Training History](evals/images/BiomedNLP-BiomedBERT-base-uncased-ner-abstract-bc5cdr-v1.1_train_history.png)
+![Training History](evals/images/BiomedNLP-PubMedBERT-base-uncased-ner-abstract-bc5cdr-v1.1_train_history.png)
 
 </details>
 
@@ -421,12 +424,11 @@ These files are helpful for understanding model-quality trade-offs, threshold se
 
 #### Model Artifacts
 
-$$⌛Pending...$$
+The saved checkpoints and adapter configurations are stored in `results/re/` for the local training runs. These directories are ignored by Git as large, generated artifacts. 
 
 #### Notes on the final evaluation
 
 This notebook closes the loop on the relation-extraction pipeline: the best trained model is selected, the decision boundary is calibrated on validation data, and the final performance is summarized on the held-out test set using the same protocol as the rest of the project.
-
 
 ---
 
@@ -506,6 +508,23 @@ Comparing the LLM-generated weak labels against the gold annotations on the data
 
 The relatively lower F1 should be interpreted with some caution, as the weak-labeling scheme does not necessarily follow the same annotation conventions as the BC5CDR gold labels. In particular, differences in how relation instances are formatted and delimited can produce apparent disagreements even when the underlying relation is captured. Thus, the comparison provides a useful indication of label quality, but should not be treated as a direct measure of semantic agreement between the two annotation schemes.
 
+#### Manual review of weak-label disagreements
+
+Agreement with gold annotations provides an important measure of weak-label quality, but disagreements do not necessarily indicate annotation errors by the LLM. In biomedical relation extraction, a model may identify a chemical–disease relation that is supported by the abstract but absent from the gold annotations. To investigate this possibility, I manually reviewed a sample of 50 cases in which the gold label was negative (`gold_label = 0`) and the weak label was positive (`weak_label = 1`).
+
+The reviewed cases are available in [`gen_error_analysis_qwen2.5-14b-instruct-gguf.xlsx`](evals/tables/gen_error_analysis_qwen2.5-14b-instruct-gguf.xlsx). Due to copyright restrictions, the artifact does not include the source text column; relevant identifiers and label/bucket information remain available for traceable review.
+
+The cases were divided into two categories:
+
+- **Bucket A – Text-supported candidate omissions (74%, 37 cases):** the abstract contained textual evidence supporting the chemical–disease relation identified by the LLM, although the corresponding relation was not annotated in the gold data. This may indicate that the gold annotation missed a relation, but it may also reflect stricter annotation criteria under the original dataset's guidelines.
+- **Bucket B – LLM failures (26%, 13 cases):** the abstract did not provide sufficient evidence for the relation predicted by the LLM, or the prediction reflected a misinterpretation of the text. These cases represent genuine weak-annotation errors, including instances where the model inferred a relation from contextual co-occurrence or misinterpreted the relationship between the chemical and disease.
+
+The results qualify the interpretation of aggregate weak-label agreement scores. In this reviewed sample, nearly three-quarters of the disagreements involved relations for which textual support could be identified. Consequently, treating every disagreement as an LLM error could underestimate the quality of the weak annotations and overlook potential differences between the annotation criteria applied by the LLM and those used to construct the gold dataset.
+
+At the same time, textual support does not automatically establish that a relation satisfies the original dataset's annotation criteria. The manual assessment therefore distinguishes text-supported candidate omissions from clear LLM failures without claiming to establish whether the original gold annotations were incorrect.
+
+The review should be interpreted as a qualitative assessment of a limited, selectively sampled set of disagreements, rather than as an estimate of the overall proportion of annotation errors in either the gold data or the LLM-generated annotations. It nevertheless illustrates why disagreement-based evaluation alone can provide an incomplete picture of weak-label quality and why manually inspecting disagreements can be informative.
+
 #### Downstream Relation Extraction Test Results (Binary Setting)
 After training the Clinical-Longformer model on the weak supervision labels, evaluating on the held-out test set at the default threshold (`0.5`) versus the validation-tuned threshold (`0.5550`) shows robust performance:
 
@@ -548,7 +567,7 @@ The results highlight the cost of expanding the label space under severe class i
 
 In addition to the held-out test evaluation, I conducted a small, manually constructed diagnostic evaluation to examine the behaviour of the complete pipeline (see [`notebooks/05_xai.ipynb`](notebooks/05_xai.ipynb)). Unlike the held-out test results, which assess relation extraction using the gold entity spans supplied by BC5CDR, this evaluation starts from raw text and therefore tests the interaction between named entity recognition (NER), candidate-pair generation, and relation classification.
 
-The [diagnostic_set](data\diagnostic_set.csv) (generated with [`make_diagnostic_set.py`](scripts\make_diagnostic_set.py)) consists of 22 sentences designed to expose potential weaknesses under controlled conditions. The examples cover several challenges, including negation, uncertainty, temporal association, treatment and prevention, antagonistic relations, multiple chemical–disease pairs, and information distributed across sentences. The objective is not to estimate performance on a representative sample of biomedical text, but to identify specific strengths and failure modes that may otherwise remain difficult to isolate in aggregate test results.
+The [diagnostic set](data/diagnostic_set.csv) (generated with [`make_diagnostic_set.py`](scripts/make_diagnostic_set.py)) consists of 22 sentences designed to expose potential weaknesses under controlled conditions. The examples cover several challenges, including negation, uncertainty, temporal association, treatment and prevention, antagonistic relations, multiple chemical–disease pairs, and information distributed across sentences. The objective is not to estimate performance on a representative sample of biomedical text, but to identify specific strengths and failure modes that may otherwise remain difficult to isolate in aggregate test results.
 
 #### Entity extraction and candidate-pair generation
 
@@ -592,5 +611,6 @@ In other words, the model is most valuable as a weak supervisor and as a labelin
 
 The project shows a credible path toward using compact open LLMs to generate weak supervision for biomedical relation extraction. The results are promising, the approach is practically useful, and the extended multiclass framework provides a more fine-grained representation of biomedical relations even though the rare categories remain difficult. The main takeaway is not that the LLM labels are perfect; it is that they may be strong enough to materially support downstream biomedical relation models and to accelerate annotation workflows in a real-world research setting.
 
-## Next steps:
+## Next steps
+
 - Package and share the trained relation-extraction models on Hugging Face.
