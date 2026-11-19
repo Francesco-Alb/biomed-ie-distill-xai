@@ -1,0 +1,23 @@
+id,text,target_chemical,target_disease,expected_multiclass,test_category,expected_binary
+01,Aspirin caused severe stomach irritation in the patient.,Aspirin,stomach irritation,1,causation,1
+02,The patient developed a rash after taking amoxicillin.,amoxicillin,rash,0,temporal association,0
+03,Amoxicillin did not cause a rash in the patient.,Amoxicillin,rash,0,negation,0
+04,"The patient developed a rash, but denied taking amoxicillin.",amoxicillin,rash,0,negation,0
+05,"The rash might have been caused by amoxicillin, although the cause remains uncertain.",amoxicillin,rash,0,uncertainty,0
+06,Ibuprofen relieved the patient's headache.,Ibuprofen,headache,2,treatment,0
+07,Metformin is used to treat type 2 diabetes.,Metformin,type 2 diabetes,2,treatment,0
+08,Lisinopril is prescribed for hypertension.,Lisinopril,hypertension,2,treatment,0
+09,"Metformin was prescribed for diabetes, while the patient also had hypertension.",Metformin,hypertension,0,unrelated pair,0
+10,The patient received aspirin and subsequently developed gastrointestinal bleeding.,aspirin,gastrointestinal bleeding,0,temporal association,0
+11,The patient received aspirin to prevent blood clots.,aspirin,blood clots,2,prevention,0
+12,Naloxone reversed the respiratory depression caused by morphine.,Naloxone,respiratory depression,3,antagonism,0
+13,Naloxone reversed the respiratory depression caused by morphine.,Morphine,respiratory depression,1,causation,1
+14,Morphine was administered to relieve severe pain.,Morphine,pain,2,treatment,0
+15,"The patient received naloxone, but no respiratory depression was observed.",Naloxone,respiratory depression,0,no relation,0
+16,"Metformin treats diabetes, whereas lisinopril treats hypertension.",Metformin,hypertension,0,multiple entities,0
+17,"Metformin treats diabetes, whereas lisinopril treats hypertension.",Lisinopril,hypertension,2,multiple entities,0
+18,Metformin may cause lactic acidosis in some patients.,Metformin,lactic acidosis,1,causation,1
+19,"Metformin is commonly used for diabetes; lactic acidosis was mentioned as a possible complication, but was not observed.",Metformin,lactic acidosis,0,uncertainty,0
+20,"The patient started amoxicillin. Two days later, a skin rash appeared, which the physician attributed to the medication.",Amoxicillin,skin rash,1,document context,1
+21,"The patient started amoxicillin. Two days later, a skin rash appeared, but the physician attributed it to a viral infection.",Amoxicillin,skin rash,0,document context,0
+22,The patient received both morphine and naloxone. Naloxone counteracted the respiratory depression induced by morphine.,Naloxone,respiratory depression,3,antagonism,0

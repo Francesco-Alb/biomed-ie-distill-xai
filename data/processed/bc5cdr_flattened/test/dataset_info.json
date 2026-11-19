@@ -1,0 +1,51 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "document_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "text": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "entities": [
+      {
+        "mesh_id": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "offsets": {
+          "feature": {
+            "dtype": "int64",
+            "_type": "Value"
+          },
+          "_type": "Sequence"
+        },
+        "text": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "type": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ],
+    "relations": [
+      {
+        "chem_mesh": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "dis_mesh": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ]
+  },
+  "homepage": "",
+  "license": ""
+}

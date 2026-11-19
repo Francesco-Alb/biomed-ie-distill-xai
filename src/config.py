@@ -32,6 +32,8 @@ class DataConfig:
 @dataclass
 class ModelConfig:
     """Model configurations."""
+
+    batch_size: int = 16
     
     # --- NER ---
     ner_output_dir: Path = Path("results/ner")
@@ -51,7 +53,9 @@ class ModelConfig:
 
     # --- RE ---
     re_output_dir: Path = Path("results/re")
-    align_labels: bool = True
+    
+    re_classification_mode: Literal["binary", "multiclass"] = "binary"
+
     re_model_name: str = "Clinical-Longformer-re-abstract-bc5cdr-LoRA-v1.2"
     re_model_checkpoint: str = "yikuan8/Clinical-Longformer"
     re_label_names_binary: list[str] = field(default_factory=lambda: [
@@ -68,7 +72,6 @@ class ModelConfig:
 
 @dataclass
 class TrackingCongif:
-    # set a literal with wandb, trackio or none
     tracker: Literal["tensorboard", "wandb", "trackio", "none"] = "trackio"
     project: str = "Biomed-IE"
     trackio_space_id: str = "Francesco-A/nlp-tracking"

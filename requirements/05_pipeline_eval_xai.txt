@@ -1,8 +1,0 @@
-# This file lists the dependencies for pipeline evaluation.
-# Includes metrics computation and performance evaluation tools.
-
--r 00_core.txt
-
-transformers
-datasets
-evaluate

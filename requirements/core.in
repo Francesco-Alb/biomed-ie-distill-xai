@@ -1,0 +1,10 @@
+# core.in
+
+pandas
+numpy
+scikit-learn
+scipy
+matplotlib
+seaborn
+tqdm
+python-dotenv
