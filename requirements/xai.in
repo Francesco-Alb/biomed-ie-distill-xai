@@ -3,7 +3,7 @@
 -r transformer_training.in
 
 # Explainability
-shap
+shap==0.51.*
 transformers-interpret
 
 # Conservative compatibility constraint

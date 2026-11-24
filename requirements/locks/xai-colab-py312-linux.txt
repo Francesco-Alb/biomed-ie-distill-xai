@@ -161,6 +161,10 @@ joblib==1.6.0
     # via scikit-learn
 kiwisolver==1.5.1
     # via matplotlib
+llvmlite==0.50.0
+    # via
+    #   numba
+    #   shap
 markdown-it-py==4.3.0
     # via rich
 markupsafe==3.0.4
@@ -190,6 +194,8 @@ narwhals==2.28.0
     # via scikit-learn
 networkx==3.7
     # via torch
+numba==0.68.1
+    # via shap
 numpy==2.5.4
     # via
     #   -r requirements/core.in
@@ -200,6 +206,7 @@ numpy==2.5.4
     #   evaluate
     #   gradio
     #   matplotlib
+    #   numba
     #   pandas
     #   peft
     #   scikit-learn
@@ -413,7 +420,7 @@ setuptools==81.0.0
     # via
     #   ipython
     #   torch
-shap==0.54.1
+shap==0.51.0
     # via -r requirements/xai.in
 shellingham==1.5.4
     # via typer
@@ -493,6 +500,7 @@ typing-extensions==4.16.0
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
+    #   shap
     #   starlette
     #   torch
     #   typing-inspection

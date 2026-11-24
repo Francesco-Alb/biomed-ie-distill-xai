@@ -1,10 +1,13 @@
-import os
-import sys
-import shutil
-import importlib
-import random
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Union, Optional
+from typing import Any, Union, Optional, Literal
+import importlib
+import os
+import platform
+import random
+import shutil
+import subprocess
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +19,8 @@ from transformers.trainer_callback import TrainerState
 from huggingface_hub import create_repo
 
 from src.modelling.training import make_training_args
+
+Runtime = Literal["local", "kaggle", "colab"]
 
 
 def dynamic_module_reloader(
@@ -324,3 +329,60 @@ def push_best_run_to_hub(
     )
 
     print("✅ Model, tokenizer, training args, and Model Card successfully pushed!")
+
+
+def save_environment_snapshot(
+    filename: str = "env_snapshot",
+    snapshot_dir: Path = Path("requirements/snapshots"),
+    runtime: Runtime | None = None,
+    timestamp: bool = True,
+    additional_details: Optional[str] = None,
+) -> None:
+    """Save the current Python environment's installed packages using uv.
+
+    If runtime is omitted, detect Kaggle or Colab; otherwise use "local".
+    The snapshot includes runtime, OS, and Python version metadata.
+
+    Args:
+        filename: Name used in the snapshot filename. Defaults to "env_snapshot".
+        snapshot_dir: Directory where the snapshot is written.
+        runtime: Runtime label, or None to detect it automatically.
+
+    Raises:
+        subprocess.CalledProcessError: If ``uv pip freeze`` fails.
+        FileNotFoundError: If ``uv`` is not available on PATH.
+    """
+    if runtime is None:
+        if Path("/kaggle/working").exists():
+            runtime = "kaggle"
+        elif "google.colab" in sys.modules:
+            runtime = "colab"
+        else:
+            runtime = "local"
+
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+    python_version = f"py{sys.version_info.major}{sys.version_info.minor}"
+    os_name = platform.system().lower()
+    filename_parts = [filename, runtime, os_name, python_version]
+    if timestamp:
+        filename_parts.append(datetime.now().strftime("%Y%m%d-%H%M%S"))
+    if isinstance(additional_details, str) and additional_details.strip():
+        filename_parts.append(additional_details.strip())
+    snapshot_path = snapshot_dir / f"{'-'.join(filename_parts)}.txt"
+
+    result = subprocess.run(
+        ["uv", "pip", "freeze", "--python", sys.executable],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    metadata = (
+        f"# Runtime: {runtime}\n"
+        f"# OS: {platform.system()} {platform.release()}\n"
+        f"# Python: {platform.python_version()}\n\n"
+    )
+    snapshot_path.write_text(metadata + result.stdout, encoding="utf-8")
+    
+    print(f"Saved snapshot to {snapshot_path}")
