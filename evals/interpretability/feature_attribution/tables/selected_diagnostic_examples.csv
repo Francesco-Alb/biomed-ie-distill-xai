@@ -1,0 +1,4 @@
+sentence,chemical,disease,masked_text,id,expected_binary,test_category,predicted_label_str,confidence,predicted_label_int,is_correct,selection_category
+Aspirin caused severe stomach irritation in the patient.,Aspirin,stomach irritation,<chemical> Aspirin </chemical> caused severe <disease> stomach irritation </disease> in the patient.,1,1,causation,Chemical-Disease-Relation,0.9968076944351196,1,True,correct_positive
+Ibuprofen relieved the patient's headache.,Ibuprofen,headache,<chemical> Ibuprofen </chemical> relieved the patient's <disease> headache </disease>.,6,0,treatment,No-Relation,0.9851318001747131,0,True,correct_negative
+The patient developed a rash after taking amoxicillin.,amoxicillin,rash,The patient developed a <disease> rash </disease> after taking <chemical> amoxicillin </chemical>.,2,0,temporal association,Chemical-Disease-Relation,0.9974383115768433,1,False,incorrect

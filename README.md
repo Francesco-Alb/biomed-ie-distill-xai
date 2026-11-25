@@ -483,6 +483,17 @@ These are individual examples, not aggregate evidence of model behaviour. The to
 
 ---
 
+## ⌛ WIP: focused XAI
+
+I'm starting a more focused explainable-AI track. These notebooks are early, exploratory work:
+
+- [Feature attribution](notebooks/interpretability/01_feature_attribution.ipynb) compares token-level attribution methods and perturbation tests for relation extraction.
+- [Layer-wise probing](notebooks/interpretability/02_probing.ipynb) explores whether negation and modality can be recovered from model representations.
+
+The results are preliminary, not validated findings. In particular, the probing notebook uses a small synthetic dataset and one grouped split; its perfect scores are a reason to check for easy wording cues, not evidence of generalization or model reliance. Next steps are to improve the examples and evaluation, then test on appropriately annotated clinical text.
+
+---
+
 ## Overall results and takeaways
 
 This project was designed to answer a concrete question: can a relatively compact 14B-parameter open LLM generate weak labels for biomedical text that are useful enough to train a downstream relation-extraction model? The answer is broadly yes, with an important caveat: the labels are useful, but they are not perfect and they work best as a scalable bootstrap signal rather than as final clinical annotations.

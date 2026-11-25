@@ -1,0 +1,4 @@
+example_position,selection_category,ig_top_tokens,shap_top_tokens,top3_overlap,top3_overlap_count
+0,correct_positive,caused | the | ise | stomach | severe,caused | chemical | < | > | chemical,caused,1
+1,correct_negative,headache | patient | the | relieved | </,relieved | > | chemical | 's | </,,0
+2,incorrect,chemical | chemical | > | < | <,after | chemical | am | oxic | developed,chemical,1
