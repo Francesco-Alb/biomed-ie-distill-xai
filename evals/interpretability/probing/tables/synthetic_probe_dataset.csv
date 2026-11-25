@@ -1,0 +1,81 @@
+text,template_group,construction,negation,modality,data_origin
+aspirin causes liver injury.,predicate_00,asserted,0,0,synthetic_minimal_pair
+aspirin does not cause liver injury.,predicate_00,negated,1,0,synthetic_minimal_pair
+aspirin may cause liver injury.,predicate_00,modal,0,1,synthetic_minimal_pair
+aspirin may not cause liver injury.,predicate_00,modal_negated,1,1,synthetic_minimal_pair
+amoxicillin induces skin rash.,predicate_01,asserted,0,0,synthetic_minimal_pair
+amoxicillin does not induce skin rash.,predicate_01,negated,1,0,synthetic_minimal_pair
+amoxicillin might induce skin rash.,predicate_01,modal,0,1,synthetic_minimal_pair
+amoxicillin might not induce skin rash.,predicate_01,modal_negated,1,1,synthetic_minimal_pair
+metformin triggers kidney damage.,predicate_02,asserted,0,0,synthetic_minimal_pair
+metformin does not trigger kidney damage.,predicate_02,negated,1,0,synthetic_minimal_pair
+metformin could trigger kidney damage.,predicate_02,modal,0,1,synthetic_minimal_pair
+metformin could not trigger kidney damage.,predicate_02,modal_negated,1,1,synthetic_minimal_pair
+ibuprofen results in headache.,predicate_03,asserted,0,0,synthetic_minimal_pair
+ibuprofen does not result in headache.,predicate_03,negated,1,0,synthetic_minimal_pair
+ibuprofen may result in headache.,predicate_03,modal,0,1,synthetic_minimal_pair
+ibuprofen may not result in headache.,predicate_03,modal_negated,1,1,synthetic_minimal_pair
+morphine leads to respiratory depression.,predicate_04,asserted,0,0,synthetic_minimal_pair
+morphine does not lead to respiratory depression.,predicate_04,negated,1,0,synthetic_minimal_pair
+morphine might lead to respiratory depression.,predicate_04,modal,0,1,synthetic_minimal_pair
+morphine might not lead to respiratory depression.,predicate_04,modal_negated,1,1,synthetic_minimal_pair
+naloxone is associated with nausea.,predicate_05,asserted,0,0,synthetic_minimal_pair
+naloxone is not associated with nausea.,predicate_05,negated,1,0,synthetic_minimal_pair
+naloxone may be associated with nausea.,predicate_05,modal,0,1,synthetic_minimal_pair
+naloxone may not be associated with nausea.,predicate_05,modal_negated,1,1,synthetic_minimal_pair
+warfarin is linked to bleeding.,predicate_06,asserted,0,0,synthetic_minimal_pair
+warfarin is not linked to bleeding.,predicate_06,negated,1,0,synthetic_minimal_pair
+warfarin could be linked to bleeding.,predicate_06,modal,0,1,synthetic_minimal_pair
+warfarin could not be linked to bleeding.,predicate_06,modal_negated,1,1,synthetic_minimal_pair
+lithium worsens infection.,predicate_07,asserted,0,0,synthetic_minimal_pair
+lithium does not worsen infection.,predicate_07,negated,1,0,synthetic_minimal_pair
+lithium may worsen infection.,predicate_07,modal,0,1,synthetic_minimal_pair
+lithium may not worsen infection.,predicate_07,modal_negated,1,1,synthetic_minimal_pair
+aspirin aggravates liver injury.,predicate_08,asserted,0,0,synthetic_minimal_pair
+aspirin does not aggravate liver injury.,predicate_08,negated,1,0,synthetic_minimal_pair
+aspirin might aggravate liver injury.,predicate_08,modal,0,1,synthetic_minimal_pair
+aspirin might not aggravate liver injury.,predicate_08,modal_negated,1,1,synthetic_minimal_pair
+amoxicillin treats skin rash.,predicate_09,asserted,0,0,synthetic_minimal_pair
+amoxicillin does not treat skin rash.,predicate_09,negated,1,0,synthetic_minimal_pair
+amoxicillin could treat skin rash.,predicate_09,modal,0,1,synthetic_minimal_pair
+amoxicillin could not treat skin rash.,predicate_09,modal_negated,1,1,synthetic_minimal_pair
+metformin prevents kidney damage.,predicate_10,asserted,0,0,synthetic_minimal_pair
+metformin does not prevent kidney damage.,predicate_10,negated,1,0,synthetic_minimal_pair
+metformin may prevent kidney damage.,predicate_10,modal,0,1,synthetic_minimal_pair
+metformin may not prevent kidney damage.,predicate_10,modal_negated,1,1,synthetic_minimal_pair
+ibuprofen relieves headache.,predicate_11,asserted,0,0,synthetic_minimal_pair
+ibuprofen does not relieve headache.,predicate_11,negated,1,0,synthetic_minimal_pair
+ibuprofen might relieve headache.,predicate_11,modal,0,1,synthetic_minimal_pair
+ibuprofen might not relieve headache.,predicate_11,modal_negated,1,1,synthetic_minimal_pair
+morphine reduces respiratory depression.,predicate_12,asserted,0,0,synthetic_minimal_pair
+morphine does not reduce respiratory depression.,predicate_12,negated,1,0,synthetic_minimal_pair
+morphine could reduce respiratory depression.,predicate_12,modal,0,1,synthetic_minimal_pair
+morphine could not reduce respiratory depression.,predicate_12,modal_negated,1,1,synthetic_minimal_pair
+naloxone contributes to nausea.,predicate_13,asserted,0,0,synthetic_minimal_pair
+naloxone does not contribute to nausea.,predicate_13,negated,1,0,synthetic_minimal_pair
+naloxone may contribute to nausea.,predicate_13,modal,0,1,synthetic_minimal_pair
+naloxone may not contribute to nausea.,predicate_13,modal_negated,1,1,synthetic_minimal_pair
+warfarin elicits bleeding.,predicate_14,asserted,0,0,synthetic_minimal_pair
+warfarin does not elicit bleeding.,predicate_14,negated,1,0,synthetic_minimal_pair
+warfarin might elicit bleeding.,predicate_14,modal,0,1,synthetic_minimal_pair
+warfarin might not elicit bleeding.,predicate_14,modal_negated,1,1,synthetic_minimal_pair
+lithium promotes infection.,predicate_15,asserted,0,0,synthetic_minimal_pair
+lithium does not promote infection.,predicate_15,negated,1,0,synthetic_minimal_pair
+lithium could promote infection.,predicate_15,modal,0,1,synthetic_minimal_pair
+lithium could not promote infection.,predicate_15,modal_negated,1,1,synthetic_minimal_pair
+aspirin exacerbates liver injury.,predicate_16,asserted,0,0,synthetic_minimal_pair
+aspirin does not exacerbate liver injury.,predicate_16,negated,1,0,synthetic_minimal_pair
+aspirin may exacerbate liver injury.,predicate_16,modal,0,1,synthetic_minimal_pair
+aspirin may not exacerbate liver injury.,predicate_16,modal_negated,1,1,synthetic_minimal_pair
+amoxicillin produces skin rash.,predicate_17,asserted,0,0,synthetic_minimal_pair
+amoxicillin does not produce skin rash.,predicate_17,negated,1,0,synthetic_minimal_pair
+amoxicillin might produce skin rash.,predicate_17,modal,0,1,synthetic_minimal_pair
+amoxicillin might not produce skin rash.,predicate_17,modal_negated,1,1,synthetic_minimal_pair
+metformin precipitates kidney damage.,predicate_18,asserted,0,0,synthetic_minimal_pair
+metformin does not precipitate kidney damage.,predicate_18,negated,1,0,synthetic_minimal_pair
+metformin could precipitate kidney damage.,predicate_18,modal,0,1,synthetic_minimal_pair
+metformin could not precipitate kidney damage.,predicate_18,modal_negated,1,1,synthetic_minimal_pair
+ibuprofen increases headache.,predicate_19,asserted,0,0,synthetic_minimal_pair
+ibuprofen does not increase headache.,predicate_19,negated,1,0,synthetic_minimal_pair
+ibuprofen may increase headache.,predicate_19,modal,0,1,synthetic_minimal_pair
+ibuprofen may not increase headache.,predicate_19,modal_negated,1,1,synthetic_minimal_pair

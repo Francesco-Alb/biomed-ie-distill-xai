@@ -1,0 +1,57 @@
+model,target,layer,macro_f1,balanced_accuracy,layer_name
+majority baseline,negation,-1,0.3333333333333333,0.5,Baseline
+TF-IDF + logistic regression,negation,-1,1.0,1.0,Baseline
+pretrained,negation,0,1.0,1.0,Embedding
+pretrained,negation,1,1.0,1.0,1
+pretrained,negation,2,1.0,1.0,2
+pretrained,negation,3,1.0,1.0,3
+pretrained,negation,4,1.0,1.0,4
+pretrained,negation,5,1.0,1.0,5
+pretrained,negation,6,1.0,1.0,6
+pretrained,negation,7,1.0,1.0,7
+pretrained,negation,8,1.0,1.0,8
+pretrained,negation,9,1.0,1.0,9
+pretrained,negation,10,1.0,1.0,10
+pretrained,negation,11,1.0,1.0,11
+pretrained,negation,12,1.0,1.0,12
+RE fine-tuned,negation,0,1.0,1.0,Embedding
+RE fine-tuned,negation,1,1.0,1.0,1
+RE fine-tuned,negation,2,1.0,1.0,2
+RE fine-tuned,negation,3,1.0,1.0,3
+RE fine-tuned,negation,4,1.0,1.0,4
+RE fine-tuned,negation,5,1.0,1.0,5
+RE fine-tuned,negation,6,1.0,1.0,6
+RE fine-tuned,negation,7,1.0,1.0,7
+RE fine-tuned,negation,8,1.0,1.0,8
+RE fine-tuned,negation,9,1.0,1.0,9
+RE fine-tuned,negation,10,1.0,1.0,10
+RE fine-tuned,negation,11,1.0,1.0,11
+RE fine-tuned,negation,12,1.0,1.0,12
+majority baseline,modality,-1,0.3333333333333333,0.5,Baseline
+TF-IDF + logistic regression,modality,-1,1.0,1.0,Baseline
+pretrained,modality,0,1.0,1.0,Embedding
+pretrained,modality,1,1.0,1.0,1
+pretrained,modality,2,1.0,1.0,2
+pretrained,modality,3,1.0,1.0,3
+pretrained,modality,4,1.0,1.0,4
+pretrained,modality,5,1.0,1.0,5
+pretrained,modality,6,1.0,1.0,6
+pretrained,modality,7,1.0,1.0,7
+pretrained,modality,8,1.0,1.0,8
+pretrained,modality,9,1.0,1.0,9
+pretrained,modality,10,1.0,1.0,10
+pretrained,modality,11,1.0,1.0,11
+pretrained,modality,12,1.0,1.0,12
+RE fine-tuned,modality,0,1.0,1.0,Embedding
+RE fine-tuned,modality,1,1.0,1.0,1
+RE fine-tuned,modality,2,1.0,1.0,2
+RE fine-tuned,modality,3,1.0,1.0,3
+RE fine-tuned,modality,4,1.0,1.0,4
+RE fine-tuned,modality,5,1.0,1.0,5
+RE fine-tuned,modality,6,1.0,1.0,6
+RE fine-tuned,modality,7,1.0,1.0,7
+RE fine-tuned,modality,8,1.0,1.0,8
+RE fine-tuned,modality,9,1.0,1.0,9
+RE fine-tuned,modality,10,1.0,1.0,10
+RE fine-tuned,modality,11,1.0,1.0,11
+RE fine-tuned,modality,12,1.0,1.0,12
